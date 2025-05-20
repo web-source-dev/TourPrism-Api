@@ -84,7 +84,9 @@ export const getActionHubAlerts = async (req, res) => {
         isFlagged: item.flagged, // Use boolean flag
         flagCount: item.flagged ? 1 : 0, // Individual user's flag status
         numberOfFollows: alertData.numberOfFollows || 0, // Get the total from the alert
-        actionLogs: item.actionLogs
+        actionLogs: item.actionLogs,
+        actionHubCreatedAt: item.createdAt, // Add ActionHub creation date
+        actionHubUpdatedAt: item.updatedAt // Add ActionHub update date
       };
     }).filter(item => item !== null); // Filter out any null items
 
@@ -176,6 +178,8 @@ export const getActionHubAlertById = async (req, res) => {
       currentActiveTab: actionHubItem.currentActiveTab,
       guests: actionHubItem.guests,
       notes: actionHubItem.notes,
+      actionHubCreatedAt: actionHubItem.createdAt, // Add ActionHub creation date
+      actionHubUpdatedAt: actionHubItem.updatedAt, // Add ActionHub update date
       // Include the user's collaborators as team members
       teamMembers: collaborators.map(collab => ({
         id: collab._id,
@@ -295,6 +299,7 @@ export const followAlert = async (req, res) => {
     });
     
     let wasFollowing = false;
+    let isFollowing = true; // Default value when creating a new entry
     
     if (!actionHubItem) {
       // Create new action hub entry for this user
@@ -311,21 +316,46 @@ export const followAlert = async (req, res) => {
           actionDetails: 'Started following alert'
         }]
       });
+      
+      await actionHubItem.save();
     } else {
       // Toggle following state
       wasFollowing = actionHubItem.isFollowing;
-      actionHubItem.isFollowing = !wasFollowing;
+      isFollowing = !wasFollowing;
       
-      // Add log entry
-      actionHubItem.actionLogs.push({
-        user: userId,
-        userEmail: userEmail,
-        actionType: 'follow',
-        actionDetails: wasFollowing ? 'Stopped following alert' : 'Started following alert'
-      });
+      if (isFollowing) {
+        // User is following the alert again
+        actionHubItem.isFollowing = true;
+        actionHubItem.actionLogs.push({
+          user: userId,
+          userEmail: userEmail,
+          actionType: 'follow',
+          actionDetails: 'Started following alert'
+        });
+        
+        await actionHubItem.save();
+      } else {
+        // User is unfollowing the alert
+        if (actionHubItem.flagged) {
+          // If the alert is flagged, keep the ActionHub item but update isFollowing
+          actionHubItem.isFollowing = false;
+          actionHubItem.actionLogs.push({
+            user: userId,
+            userEmail: userEmail,
+            actionType: 'follow',
+            actionDetails: 'Stopped following alert'
+          });
+          
+          await actionHubItem.save();
+        } else {
+          // If the alert is not flagged, remove the ActionHub item completely
+          await ActionHub.deleteOne({ 
+            userId: userId,
+            $or: [{ alert: alertId }, { alertId: alertId }]
+          });
+        }
+      }
     }
-    
-    await actionHubItem.save();
 
     // Count the total number of users following this alert
     const followingCount = await ActionHub.countDocuments({
@@ -349,8 +379,6 @@ export const followAlert = async (req, res) => {
         user.followedAlerts = [];
       }
       
-      const isFollowing = actionHubItem.isFollowing;
-      
       if (isFollowing && !user.followedAlerts.includes(alertId)) {
         user.followedAlerts.push(alertId);
       } else if (!isFollowing) {
@@ -361,7 +389,7 @@ export const followAlert = async (req, res) => {
     }
 
     return res.status(200).json({ 
-      following: actionHubItem.isFollowing,
+      following: isFollowing,
       numberOfFollows: followingCount
     });
   } catch (error) {

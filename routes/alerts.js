@@ -420,6 +420,7 @@ router.post("/:id/follow", authenticate, async (req, res) => {
     });
     
     let wasFollowing = false;
+    let isFollowing = true; // Default value when creating a new entry
     
     if (!actionHubItem) {
       // Create new action hub entry for this user
@@ -435,20 +436,44 @@ router.post("/:id/follow", authenticate, async (req, res) => {
           actionDetails: 'Started following alert'
         }]
       });
+      
+      await actionHubItem.save();
     } else {
       // Toggle following state
       wasFollowing = actionHubItem.isFollowing;
-      actionHubItem.isFollowing = !wasFollowing;
+      isFollowing = !wasFollowing;
       
-      // Add log entry
-      actionHubItem.actionLogs.push({
-        user: userId,
-        actionType: 'follow',
-        actionDetails: wasFollowing ? 'Stopped following alert' : 'Started following alert'
-      });
+      if (isFollowing) {
+        // User is following the alert again
+        actionHubItem.isFollowing = true;
+        actionHubItem.actionLogs.push({
+          user: userId,
+          actionType: 'follow',
+          actionDetails: 'Started following alert'
+        });
+        
+        await actionHubItem.save();
+      } else {
+        // User is unfollowing the alert
+        if (actionHubItem.flagged) {
+          // If the alert is flagged, keep the ActionHub item but update isFollowing
+          actionHubItem.isFollowing = false;
+          actionHubItem.actionLogs.push({
+            user: userId,
+            actionType: 'follow',
+            actionDetails: 'Stopped following alert'
+          });
+          
+          await actionHubItem.save();
+        } else {
+          // If the alert is not flagged, remove the ActionHub item completely
+          await ActionHub.deleteOne({ 
+            userId: userId,
+            $or: [{ alert: alertId }, { alertId: alertId }]
+          });
+        }
+      }
     }
-    
-    await actionHubItem.save();
 
     // Count the total number of users following this alert
     const followingCount = await ActionHub.countDocuments({
@@ -469,8 +494,6 @@ router.post("/:id/follow", authenticate, async (req, res) => {
     if (!user.followedAlerts) {
       user.followedAlerts = [];
     }
-    
-    const isFollowing = actionHubItem.isFollowing;
     
     if (isFollowing && !user.followedAlerts.includes(alertId)) {
       user.followedAlerts.push(alertId);
