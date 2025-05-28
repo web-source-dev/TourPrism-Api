@@ -107,11 +107,5 @@ const actionHubSchema = new mongoose.Schema({
     default: false
   }
 }, { timestamps: true });
-
-// Create indexes for better query performance
-actionHubSchema.index({ userId: 1, alert: 1 });
-actionHubSchema.index({ userId: 1, alertId: 1 });
-actionHubSchema.index({ userId: 1, status: 1 });
-
 const ActionHub = mongoose.model('ActionHub', actionHubSchema);
 export default ActionHub; 
