@@ -1,0 +1,12 @@
+env file 
+# .env
+# .env.locala
+# Ignore environment variable files
+.env.local
+.env.development
+.env.production
+.env.test
+.env
+*.env.*
+config.js
+credentials.js
