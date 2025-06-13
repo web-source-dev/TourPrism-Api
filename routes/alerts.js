@@ -320,21 +320,19 @@ router.get("/", optionalAuth, async (req, res) => {
     // Define sorting options
     let sortOptions = {};
     switch (sortBy) {
-      case 'newest':
+      case 'latest':
         sortOptions = { createdAt: -1 };
         break;
-      case 'oldest':
-        sortOptions = { createdAt: 1 };
-        break;
-      case 'relevant':
-        sortOptions = { numberOfFollows: -1 };
-        break;
-      case 'updated':
-        sortOptions = { updatedAt: -1 };
+      case 'highest_impact':
+        // First sort by impact (Severe > Moderate > Minor)
+        sortOptions = { 
+          impact: -1,
+          createdAt: -1 // Secondary sort by creation date
+        };
         break;
       default:
-        // Default to most recently active
-        sortOptions = { updatedAt: -1, createdAt: -1 };
+        // Default to most recently created
+        sortOptions = { createdAt: -1 };
     }
     
     let alerts = [];
