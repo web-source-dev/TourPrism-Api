@@ -10,6 +10,7 @@ import sendVerificationEmail from "../utils/emailTemplates/verification.js";
 import dotenv from "dotenv";
 import SibApiV3Sdk from "sib-api-v3-sdk";
 dotenv.config();
+import Subscriber from "../models/subscribers.js";
 
 const router = express.Router();
 
@@ -80,7 +81,7 @@ router.post("/register", async (req, res) => {
     }
 
     // Check if email exists in subscribers collection
-    const subscriber = await import('../models/subscribers.js').then(module => module.default).catch(() => null);
+    const subscriber = await Subscriber.findOne({ email });
     let subscriberData = null;
     
     if (subscriber) {
