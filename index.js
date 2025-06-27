@@ -30,6 +30,65 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
+// CORS configuration - moved to the very beginning
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      "https://www.tourprism.com",
+      "https://tourprism.com", 
+      "http://localhost:3000", 
+      "http://localhost:3001"
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: [
+    "Origin", 
+    "X-Requested-With", 
+    "Content-Type", 
+    "Accept", 
+    "Authorization",
+    "Cache-Control"
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  preflightContinue: false
+};
+
+// Apply CORS middleware first
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Add debugging middleware to log CORS issues
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
+
+// Error handling middleware for CORS
+app.use((err, req, res, next) => {
+  if (err.message === 'Not allowed by CORS') {
+    console.log('CORS Error:', err.message);
+    return res.status(403).json({
+      error: 'CORS Error',
+      message: 'Origin not allowed',
+      origin: req.headers.origin
+    });
+  }
+  next(err);
+});
+
 const io = new Server(httpServer, {
   cors: {
     origin: ["https://www.tourprism.com","https://tourprism.com", "http://localhost:3000", "http://localhost:3001"],
@@ -48,15 +107,6 @@ io.on("connection", (socket) => {
 });
 
 export { io };
-
-app.use(
-  cors({
-    origin: ["https://www.tourprism.com","https://tourprism.com", "http://localhost:3000", "http://localhost:3001"], // ✅ Correct way
-    methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-    credentials: true, // ✅ Allow cookies & authentication headers
-  })
-);
-
 
 app.use(express.json());
 app.use(passport.initialize());
