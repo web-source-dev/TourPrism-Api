@@ -1,0 +1,51 @@
+import express from 'express';
+import Logs from '../models/Logs.js';
+import { createSubscriber } from '../controllers/subscriberController.js';
+
+const router = express.Router();
+
+// POST /api/subscribers
+router.post('/', async (req, res) => {
+  // Extract IP and user-agent for logging
+  const ipAddress = req.ip;
+  const userAgent = req.get('user-agent');
+
+  // Add logging data to the request object
+  req.loggingData = {
+    ipAddress,
+    userAgent
+  };
+  
+  // Call the controller with the enhanced request
+  return createSubscriber(req, res);
+});
+
+// GET /unsubscribe
+router.get('/unsubscribe', async (req, res) => {
+  const { email } = req.query;
+  const subscriber = await Subscriber.findOne({ email });
+  if (!subscriber) {
+    return res.status(404).json({ message: 'Subscriber not found' });
+  }
+
+
+  subscriber.isActive = false;
+
+  await Logs.createLog({
+    action: 'subscriber_unsubscribed',
+    userEmail: email,
+    userName: subscriber.name || email.split('@')[0],
+    details: {
+      sector: subscriber.sector,
+      location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
+      subscriptionType: 'Weekly forecast'
+    },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
+
+  await subscriber.save();
+  res.status(200).json({ message: 'Unsubscribed successfully' });
+});
+
+export default router;

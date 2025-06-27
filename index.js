@@ -14,6 +14,10 @@ import profileRoutes from "./routes/Profile.js";
 import archivedAlertRoutes from "./routes/archivedAlerts.js";
 import actionHubRoutes from "./routes/action-hub.js";
 import summaryRoutes from "./routes/summaries.js";
+import brevoAnalyticsRoutes from "./routes/brevoAnalytics.js";
+import subscribersRoutes from "./routes/subscribers.js";
+import logsRoutes from "./routes/logs.js";
+import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -84,9 +88,21 @@ app.use("/api/action-hub", actionHubRoutes);
 // Add summary routes
 app.use("/api/summaries", summaryRoutes);
 
+// Add Brevo email analytics routes
+app.use("/api/email-analytics", brevoAnalyticsRoutes);
+
+// Add subscribers routes
+app.use("/api/subscribers", subscribersRoutes);
+
+// Add logs routes
+app.use("/api/logs", logsRoutes);
+
 connectDB();
 const HOST = "0.0.0.0"; // Allows external connections
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
+
+// Schedule weekly digest emails
+scheduleWeeklyDigests();
 
 // Use httpServer instead of app
 httpServer.listen(PORT, HOST, () => console.log(`Server running on port ${PORT}`));

@@ -3,6 +3,7 @@ import { authenticate } from "../middleware/auth.js";
 import Alert from "../models/Alert.js";
 import Summary from "../models/Summary.js";
 import User from "../models/User.js";
+import Logs from "../models/Logs.js";
 import { generatePdf, generateSummaryHTML } from "../utils/pdfGenerator.js";
 const router = express.Router();
 
@@ -131,6 +132,38 @@ router.post("/generate", authenticate, async (req, res) => {
     } = req.body;
 
     const userId = req.userId;
+    
+    // Log summary generation start
+    try {
+      // Get user info for better logging
+      const user = await User.findById(userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: 'summary_generation_started',
+        details: {
+          title,
+          summaryType,
+          filters: {
+            startDate,
+            endDate,
+            locationCount: locations?.length,
+            alertTypes,
+            alertCategory,
+            impact
+          },
+          generatePDF,
+          autoSave
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging summary generation start:', error);
+      // Continue execution even if logging fails
+    }
     
     // Get user's MainOperatingRegions if they exist
     const user = await User.findById(userId).lean();
@@ -323,10 +356,52 @@ router.post("/generate", authenticate, async (req, res) => {
         if (savedSummaryId) {
           summaryData.savedSummaryId = savedSummaryId;
         }
+        
+        // Log summary saved
+        try {
+          await Logs.createLog({
+            userId: userId,
+            userEmail: req.userEmail || user?.email,
+            userName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.email?.split('@')[0] || 'Unknown'),
+            action: 'summary_saved',
+            details: {
+              summaryId: savedSummaryId,
+              title,
+              alertCount: alerts.length
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+          });
+        } catch (error) {
+          console.error('Error logging summary save:', error);
+          // Continue execution even if logging fails
+        }
       } catch (saveError) {
         console.error("Error saving summary:", saveError);
         // We'll still return the generated content even if saving fails
       }
+    }
+    
+    // Log summary generation completed
+    try {
+      await Logs.createLog({
+        userId: userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.email?.split('@')[0] || 'Unknown'),
+        action: 'summary_generation_completed',
+        details: {
+          title,
+          alertCount: alerts.length,
+          duplicateGroups: duplicateGroups.length,
+          hasPdf: !!pdfUrl,
+          savedSummaryId
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging summary generation completion:', error);
+      // Continue execution even if logging fails
     }
     
     // Always return a success response with the data we were able to generate
@@ -361,6 +436,23 @@ router.post("/generate", authenticate, async (req, res) => {
 router.get("/saved", authenticate, async (req, res) => {
   try {
     const userId = req.userId;
+    
+    // Log access to saved summaries
+    try {
+      const user = await User.findById(userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: 'saved_summaries_viewed',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging saved summaries view:', error);
+      // Continue execution even if logging fails
+    }
     
     const summaries = await Summary.find({ userId })
       .sort({ createdAt: -1 })
@@ -398,6 +490,28 @@ router.get("/:id", authenticate, async (req, res) => {
       });
     }
     
+    // Log summary view
+    try {
+      const user = await User.findById(userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: 'summary_viewed',
+        details: {
+          summaryId,
+          title: summary.title,
+          alertCount: summary.includedAlerts?.length || 0
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging summary view:', error);
+      // Continue execution even if logging fails
+    }
+    
     res.json({
       success: true,
       summary
@@ -418,16 +532,38 @@ router.delete("/:id", authenticate, async (req, res) => {
     const summaryId = req.params.id;
     const userId = req.userId;
     
-    const result = await Summary.deleteOne({ 
-      _id: summaryId,
-      userId 
-    });
+    // Find the summary first to log details before deletion
+    const summary = await Summary.findOne({ _id: summaryId, userId });
     
-    if (result.deletedCount === 0) {
+    if (!summary) {
       return res.status(404).json({
         success: false,
         message: "Summary not found or you don't have permission to delete it"
       });
+    }
+    
+    // Delete the summary
+    await Summary.deleteOne({ _id: summaryId, userId });
+    
+    // Log summary deletion
+    try {
+      const user = await User.findById(userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: 'summary_deleted',
+        details: {
+          summaryId,
+          title: summary.title
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging summary deletion:', error);
+      // Continue execution even if logging fails
     }
     
     res.json({

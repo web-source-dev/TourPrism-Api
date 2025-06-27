@@ -1,6 +1,7 @@
 import express from "express";
 import Alert from "../models/Alert.js";
 import User from "../models/User.js";
+import Logs from '../models/Logs.js';
 import { upload, getFileType } from "../utils/fileUpload.js";
 import { authenticate, optionalAuth } from "../middleware/auth.js";
 import { io } from "../index.js";
@@ -163,6 +164,32 @@ router.post(
         alert,
         message: 'New alert created'
       });
+
+      // Log alert creation
+      try {
+        // Get user info for better logging
+        const user = await User.findById(req.userId).select('firstName lastName email');
+        
+        await Logs.createLog({
+          userId: req.userId,
+          userEmail: req.userEmail || user?.email,
+          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+          action: 'alert_created',
+          details: {
+            alertId: alert._id,
+            title: alert.title,
+            category: alertCategory,
+            type: alertType,
+            impactLocationsCount: parsedImpactLocations.length,
+            hasMedia: mediaFiles.length > 0
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+      } catch (logError) {
+        console.error('Error logging alert creation:', logError);
+        // Continue execution even if logging fails
+      }
 
       res.status(201).json({
         message: "Alert created successfully",
@@ -500,6 +527,26 @@ router.post("/:id/follow", authenticate, async (req, res) => {
     
     await user.save();
 
+    // Log follow/unfollow action
+    try {
+      await Logs.createLog({
+        userId,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email.split('@')[0]),
+        action: isFollowing ? 'alert_followed' : 'alert_unfollowed',
+        details: {
+          alertId,
+          alertTitle: alert.title,
+          followCount: followingCount
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (logError) {
+      console.error('Error logging follow action:', logError);
+      // Continue execution even if logging fails
+    }
+
     // Emit real-time update
     io.emit('alert:followed', {
       alertId: alert._id,
@@ -580,6 +627,8 @@ router.post("/:id/like", authenticate, async (req, res) => {
     }
 
     const likedIndex = alert.likedBy.indexOf(req.userId);
+    const wasLiked = likedIndex !== -1;
+    
     if (likedIndex === -1) {
       alert.likedBy.push(req.userId);
       alert.likes += 1;
@@ -589,6 +638,28 @@ router.post("/:id/like", authenticate, async (req, res) => {
     }
 
     await alert.save();
+
+    // Log like/unlike action
+    try {
+      const user = await User.findById(req.userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: wasLiked ? 'alert_unliked' : 'alert_liked',
+        details: {
+          alertId: alert._id,
+          alertTitle: alert.title,
+          likeCount: alert.likes
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (logError) {
+      console.error('Error logging like action:', logError);
+      // Continue execution even if logging fails
+    }
 
     // Emit real-time update
     io.emit('alert:liked', {
@@ -618,6 +689,28 @@ router.post("/:id/share", authenticate, async (req, res) => {
     }
 
     await alert.save();
+
+    // Log share action
+    try {
+      const user = await User.findById(req.userId).select('firstName lastName email');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user?.email,
+        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+        action: 'alert_shared',
+        details: {
+          alertId: alert._id,
+          alertTitle: alert.title,
+          shareCount: alert.shares
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (logError) {
+      console.error('Error logging share action:', logError);
+      // Continue execution even if logging fails
+    }
 
     // Emit real-time update
     io.emit('alert:shared', {

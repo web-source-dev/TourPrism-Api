@@ -2,10 +2,9 @@ import ActionHub from '../models/ActionHub.js';
 import Alert from '../models/Alert.js';
 import User from '../models/User.js';
 import NotificationSys from '../models/NotificationSys.js';
-import { 
-  sendAlertNotificationToGuest, 
-  sendAlertNotificationToTeam 
-} from '../utils/emailService.js';
+import Logs from '../models/Logs.js';
+import sendAlertNotificationToGuest from '../utils/emailTemplates/alertNotification-guests.js';
+import sendAlertNotificationToTeam from '../utils/emailTemplates/alertNotification-team.js';
 /**
  * Helper function to check and update alert status based on age
  * Automatically moves alerts from 'new' to 'in_progress' if they are older than 24 hours
@@ -216,6 +215,8 @@ export const flagAlert = async (req, res) => {
       $or: [{ alert: alertId }, { alertId: alertId }]
     });
     
+    let flaggedAction;
+    
     if (!actionHubItem) {
       // Create new action hub entry for this user and alert
       actionHubItem = new ActionHub({
@@ -233,9 +234,15 @@ export const flagAlert = async (req, res) => {
       });
       
       await actionHubItem.save();
+      
+      // Set action for log
+      flaggedAction = 'flag_added';
     } else {
       // Toggle flagged state
       actionHubItem.flagged = !actionHubItem.flagged;
+      
+      // Set action for log
+      flaggedAction = actionHubItem.flagged ? 'flag_added' : 'flag_removed';
       
       // Add log entry
       actionHubItem.actionLogs.push({
@@ -261,6 +268,26 @@ export const flagAlert = async (req, res) => {
         $or: [{ alert: alertId }, { alertId: alertId }], 
         flagged: true 
       })}
+    });
+    
+    // Get user info for logging
+    const user = await User.findById(userId).select('firstName lastName email');
+    
+    // Log the flag action
+    await Logs.createLog({
+      userId: userId,
+      userEmail: userEmail || user?.email,
+      userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+      action: 'alert_flagged',
+      details: {
+        action: flaggedAction,
+        alertId: alertId,
+        alertTitle: alert.title,
+        actionHubId: actionHubItem._id,
+        isCollaborator: !!userEmail
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
     });
 
     return res.status(200).json({ 
@@ -297,6 +324,7 @@ export const followAlert = async (req, res) => {
     
     let wasFollowing = false;
     let isFollowing = true; // Default value when creating a new entry
+    let followAction;
     
     if (!actionHubItem) {
       // Create new action hub entry for this user
@@ -315,6 +343,7 @@ export const followAlert = async (req, res) => {
       });
       
       await actionHubItem.save();
+      followAction = 'follow_started';
     } else {
       // Toggle following state
       wasFollowing = actionHubItem.isFollowing;
@@ -331,6 +360,7 @@ export const followAlert = async (req, res) => {
         });
         
         await actionHubItem.save();
+        followAction = 'follow_started';
       } else {
         // User is unfollowing the alert
         if (actionHubItem.flagged) {
@@ -344,12 +374,14 @@ export const followAlert = async (req, res) => {
           });
           
           await actionHubItem.save();
+          followAction = 'follow_stopped';
         } else {
           // If the alert is not flagged, remove the ActionHub item completely
           await ActionHub.deleteOne({ 
             userId: userId,
             $or: [{ alert: alertId }, { alertId: alertId }]
           });
+          followAction = 'follow_stopped';
         }
       }
     }
@@ -383,6 +415,26 @@ export const followAlert = async (req, res) => {
       }
       
       await user.save();
+      
+      // Log the follow/unfollow action
+      await Logs.createLog({
+        userId: userId,
+        userEmail: userEmail || user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: isFollowing ? 'alert_followed' : 'alert_unfollowed',
+        details: {
+          action: followAction,
+          alertId: alertId,
+          alertTitle: alert.title,
+          actionHubId: actionHubItem?._id,
+          isCollaborator: !!userEmail,
+          followCount: followingCount
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
     }
 
     return res.status(200).json({ 
@@ -423,7 +475,9 @@ export const markActionHubItemStatus = async (req, res) => {
         return res.status(403).json({ message: 'You do not have permission to update this Action Hub item' });
       }
     }
-
+    
+    const previousStatus = actionHubItem.status; // Store previous status for logging
+    
     // Update status
     actionHubItem.status = status;
     
@@ -455,6 +509,31 @@ export const markActionHubItemStatus = async (req, res) => {
     });
     
     await actionHubItem.save();
+    
+    // Populate alert info for logging
+    await actionHubItem.populate('alert');
+    
+    // Get user info for logging
+    const user = await User.findById(userId).select('firstName lastName email role');
+    
+    // Log the status change
+    await Logs.createLog({
+      userId: userId,
+      userEmail: userEmail || user?.email,
+      userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+      action: 'action_hub_status_changed',
+      details: {
+        actionHubId: actionHubItem._id,
+        alertId: actionHubItem.alert?._id,
+        alertTitle: actionHubItem.alert?.title || 'Unknown Alert',
+        previousStatus: previousStatus,
+        newStatus: status,
+        isCollaborator: !!userEmail,
+        userRole: user?.role || 'unknown'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     return res.status(200).json({ 
       message: `Action Hub item marked as ${status} successfully`,

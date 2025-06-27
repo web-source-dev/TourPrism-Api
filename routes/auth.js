@@ -4,8 +4,11 @@ import jwt from "jsonwebtoken";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/User.js";
-import { generateOTP, sendVerificationEmail, sendPasswordResetEmail } from "../utils/emailService.js";
+import Logs from "../models/Logs.js";
+import { generateOTP } from "../utils/emailService.js";
+import sendVerificationEmail from "../utils/emailTemplates/verification.js";
 import dotenv from "dotenv";
+import SibApiV3Sdk from "sib-api-v3-sdk";
 dotenv.config();
 
 const router = express.Router();
@@ -25,6 +28,32 @@ passport.use(
           user = await User.create({
             googleId: profile.id,
             email: profile.emails[0].value,
+          });
+          
+          // Log new user signup via Google
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: profile.displayName || user.email.split('@')[0],
+            action: 'signup',
+            details: {
+              method: 'google',
+              signupCompleted: true
+            }
+          });
+        } else {
+          // Log Google login
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: user.firstName && user.lastName ? 
+              `${user.firstName} ${user.lastName}` : 
+              (user.firstName || user.email.split('@')[0]),
+            action: 'login',
+            details: {
+              method: 'google',
+              success: true
+            }
           });
         }
         return done(null, user);
@@ -50,6 +79,14 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "This email is registered with Google. Please continue with Google login." });
     }
 
+    // Check if email exists in subscribers collection
+    const subscriber = await import('../models/subscribers.js').then(module => module.default).catch(() => null);
+    let subscriberData = null;
+    
+    if (subscriber) {
+      subscriberData = await subscriber.findOne({ email });
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -58,23 +95,74 @@ router.post("/register", async (req, res) => {
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
-    // Create user
-    user = await User.create({
+    // Create user with data from subscriber if available
+    const userData = {
       email,
       password: hashedPassword,
       otp,
       otpExpiry,
       otpLastSent: new Date()
-    });
+    };
+
+    // If subscriber data exists, populate user data from it
+    if (subscriberData) {
+      // Split name into first and last name
+      if (subscriberData.name) {
+        const nameParts = subscriberData.name.trim().split(' ');
+        if (nameParts.length > 0) {
+          userData.firstName = nameParts[0];
+          if (nameParts.length > 1) {
+            userData.lastName = nameParts.slice(1).join(' ');
+          }
+        }
+      }
+
+      // Set company information
+      userData.company = {
+        type: subscriberData.sector || '',
+        MainOperatingRegions: []
+      };
+
+      // Add location data if available
+      if (subscriberData.location && subscriberData.location.length > 0) {
+        userData.company.MainOperatingRegions = subscriberData.location.map(loc => ({
+          name: loc.name || '',
+          latitude: loc.latitude || 0,
+          longitude: loc.longitude || 0,
+          placeId: loc.placeId || ''
+        }));
+      }
+    }
+
+    // Create user with the populated data
+    user = await User.create(userData);
 
     // Send verification email
     await sendVerificationEmail(email, otp);
+    
+    // Log signup
+    await Logs.createLog({
+      userId: user._id,
+      userEmail: email,
+      userName: userData.firstName && userData.lastName ? 
+        `${userData.firstName} ${userData.lastName}` : 
+        (userData.firstName || email.split('@')[0]),
+      action: 'signup',
+      details: {
+        method: 'email',
+        signupCompleted: false,
+        awaitingVerification: true
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     res.status(201).json({ 
       message: "Registration successful. Please check your email for verification code.",
       userId: user._id
     });
   } catch (error) {
+    console.error("Registration error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -104,6 +192,22 @@ router.post("/verify-email", async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "24h", // Changed from 1h to 24h
+    });
+    
+    // Log email verification
+    await Logs.createLog({
+      userId: user._id,
+      userEmail: user.email,
+      userName: user.firstName && user.lastName ? 
+        `${user.firstName} ${user.lastName}` : 
+        (user.firstName || user.email.split('@')[0]),
+      action: 'email_verified',
+      details: {
+        method: 'otp',
+        signupCompleted: true
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
     });
 
     res.json({ 
@@ -186,8 +290,20 @@ router.post("/resend-reset-otp", async (req, res) => {
     user.otpLastSent = new Date();
     await user.save();
 
-    // Send password reset email
-    await sendPasswordResetEmail(user.email, otp);
+    // Send password reset email using Brevo template
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.templateId = 4; // TourPrism Reset Password template ID
+    sendSmtpEmail.sender = { email: process.env.EMAIL_FROM || "no-reply@tourprism.com" };
+    sendSmtpEmail.to = [{ email: user.email }];
+    sendSmtpEmail.params = { otp: otp };
+    
+    try {
+      const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+      await apiInstance.sendTransacEmail(sendSmtpEmail);
+    } catch (emailError) {
+      console.error("Error sending reset password email:", emailError);
+      // Continue execution even if email fails
+    }
 
     res.json({ message: "Reset OTP resent successfully" });
   } catch (error) {
@@ -215,8 +331,35 @@ router.post("/forgot-password", async (req, res) => {
     user.otpLastSent = new Date();
     await user.save();
 
-    // Send password reset email
-    await sendPasswordResetEmail(email, otp);
+    // Send password reset email using Brevo template
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.templateId = 4; // TourPrism Reset Password template ID
+    sendSmtpEmail.sender = { email: process.env.EMAIL_FROM || "no-reply@tourprism.com" };
+    sendSmtpEmail.to = [{ email: user.email }];
+    sendSmtpEmail.params = { otp: otp };
+    
+    try {
+      const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+      await apiInstance.sendTransacEmail(sendSmtpEmail);
+    } catch (emailError) {
+      console.error("Error sending reset password email:", emailError);
+      // Continue execution even if email fails
+    }
+    
+    // Log password reset request
+    await Logs.createLog({
+      userId: user._id,
+      userEmail: user.email,
+      userName: user.firstName && user.lastName ? 
+        `${user.firstName} ${user.lastName}` : 
+        (user.firstName || user.email.split('@')[0]),
+      action: 'password_reset',
+      details: {
+        stage: 'requested'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     res.json({ 
       message: "Password reset OTP sent to your email",
@@ -269,6 +412,21 @@ router.post("/reset-password", async (req, res) => {
     user.otp = undefined;
     user.otpExpiry = undefined;
     await user.save();
+    
+    // Log password reset completion
+    await Logs.createLog({
+      userId: user._id,
+      userEmail: user.email,
+      userName: user.firstName && user.lastName ? 
+        `${user.firstName} ${user.lastName}` : 
+        (user.firstName || user.email.split('@')[0]),
+      action: 'password_reset',
+      details: {
+        stage: 'completed'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     res.json({ message: "Password reset successful" });
   } catch (error) {
@@ -292,10 +450,44 @@ router.post("/login", async (req, res) => {
 
       // Check if user is restricted or deleted
       if (user.status === 'restricted') {
+        // Log failed login attempt due to restriction
+        await Logs.createLog({
+          userId: user._id,
+          userEmail: user.email,
+          userName: user.firstName && user.lastName ? 
+            `${user.firstName} ${user.lastName}` : 
+            (user.firstName || user.email.split('@')[0]),
+          action: 'login',
+          details: {
+            method: 'email',
+            success: false,
+            reason: 'account_restricted'
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+        
         return res.status(403).json({ message: "Your account has been restricted. Please contact support for assistance." });
       }
       
       if (user.status === 'deleted') {
+        // Log failed login attempt due to deletion
+        await Logs.createLog({
+          userId: user._id,
+          userEmail: user.email,
+          userName: user.firstName && user.lastName ? 
+            `${user.firstName} ${user.lastName}` : 
+            (user.firstName || user.email.split('@')[0]),
+          action: 'login',
+          details: {
+            method: 'email',
+            success: false,
+            reason: 'account_deleted'
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+        
         return res.status(403).json({ message: "Your account has been deleted. Please contact support for assistance." });
       }
 
@@ -313,6 +505,23 @@ router.post("/login", async (req, res) => {
 
           // Send verification email
           await sendVerificationEmail(email, otp);
+          
+          // Log login attempt requiring verification
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: user.firstName && user.lastName ? 
+              `${user.firstName} ${user.lastName}` : 
+              (user.firstName || user.email.split('@')[0]),
+            action: 'login',
+            details: {
+              method: 'email',
+              success: false,
+              reason: 'needs_verification'
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+          });
 
           return res.status(200).json({
             message: "Please verify your email",
@@ -329,9 +538,43 @@ router.post("/login", async (req, res) => {
         const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
           expiresIn: "24h",
         });
+        
+        // Log successful login
+        await Logs.createLog({
+          userId: user._id,
+          userEmail: user.email,
+          userName: user.firstName && user.lastName ? 
+            `${user.firstName} ${user.lastName}` : 
+            (user.firstName || user.email.split('@')[0]),
+          action: 'login',
+          details: {
+            method: 'email',
+            success: true,
+            role: user.role
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
 
         return res.json({ token, user: { id: user._id, email: user.email, role: user.role } });
       }
+      
+      // Log failed login due to incorrect password
+      await Logs.createLog({
+        userId: user._id,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email.split('@')[0]),
+        action: 'login',
+        details: {
+          method: 'email',
+          success: false,
+          reason: 'invalid_password'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
     }
     
     // If we reach here, either user doesn't exist or password didn't match
@@ -349,6 +592,21 @@ router.post("/login", async (req, res) => {
         
         // Modified password validation check - just check if the password field exists at all
         if (!collaborator.password) {
+          // Log collaborator account not set up
+          await Logs.createLog({
+            userId: parentUser._id,
+            userEmail: email,
+            userName: collaborator.name || email.split('@')[0],
+            action: 'login',
+            details: {
+              method: 'collaborator',
+              success: false,
+              reason: 'account_setup_incomplete'
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+          });
+          
           return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
         }
         
@@ -359,20 +617,53 @@ router.post("/login", async (req, res) => {
           if (isCollabMatch) {
             // Check if parent user is restricted or deleted
             if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
+              // Log failed collaborator login due to parent account status
+              await Logs.createLog({
+                userId: parentUser._id,
+                userEmail: email,
+                userName: collaborator.name || email.split('@')[0],
+                action: 'login',
+                details: {
+                  method: 'collaborator',
+                  success: false,
+                  reason: 'parent_account_' + parentUser.status
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+              });
+              
               return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
             }
             
             // Check collaborator status - only allow active collaborators to login
             if (collaborator.status !== 'active') {
+              const statusReason = `collaborator_status_${collaborator.status}`;
+              let statusMessage = "Your account is not active. Please contact the account owner for assistance.";
+              
               if (collaborator.status === 'invited') {
-                return res.status(403).json({ message: "Your invitation is pending acceptance. Please check your email for instructions." });
+                statusMessage = "Your invitation is pending acceptance. Please check your email for instructions.";
               } else if (collaborator.status === 'restricted') {
-                return res.status(403).json({ message: "Your access has been restricted. Please contact the account owner for assistance." });
+                statusMessage = "Your access has been restricted. Please contact the account owner for assistance.";
               } else if (collaborator.status === 'deleted') {
-                return res.status(403).json({ message: "Your access has been revoked. Please contact the account owner for assistance." });
-              } else {
-                return res.status(403).json({ message: "Your account is not active. Please contact the account owner for assistance." });
+                statusMessage = "Your access has been revoked. Please contact the account owner for assistance.";
               }
+              
+              // Log failed collaborator login due to status
+              await Logs.createLog({
+                userId: parentUser._id,
+                userEmail: email,
+                userName: collaborator.name || email.split('@')[0],
+                action: 'login',
+                details: {
+                  method: 'collaborator',
+                  success: false,
+                  reason: statusReason
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+              });
+              
+              return res.status(403).json({ message: statusMessage });
             }
             
             // Update last login timestamp for parent user
@@ -387,6 +678,22 @@ router.post("/login", async (req, res) => {
               collaboratorRole: collaborator.role
             }, process.env.JWT_SECRET, {
               expiresIn: "24h",
+            });
+            
+            // Log successful collaborator login
+            await Logs.createLog({
+              userId: parentUser._id,
+              userEmail: email,
+              userName: collaborator.name || email.split('@')[0],
+              action: 'login',
+              details: {
+                method: 'collaborator',
+                success: true,
+                role: collaborator.role,
+                parentAccount: parentUser.email
+              },
+              ipAddress: req.ip,
+              userAgent: req.get('user-agent')
             });
 
             return res.json({ 
@@ -403,6 +710,21 @@ router.post("/login", async (req, res) => {
               } 
             });
           } else {
+            // Log failed collaborator login due to incorrect password
+            await Logs.createLog({
+              userId: parentUser._id,
+              userEmail: email,
+              userName: collaborator.name || email.split('@')[0],
+              action: 'login',
+              details: {
+                method: 'collaborator',
+                success: false,
+                reason: 'invalid_password'
+              },
+              ipAddress: req.ip,
+              userAgent: req.get('user-agent')
+            });
+            
             return res.status(400).json({ message: "Invalid credentials - incorrect password" });
           }
         } catch (bcryptError) {
@@ -414,6 +736,19 @@ router.post("/login", async (req, res) => {
     } else {
       console.log('No parent user found for email:', email);
     }
+
+    // Log failed login attempt for non-existent user
+    await Logs.createLog({
+      userEmail: email,
+      action: 'login',
+      details: {
+        method: 'email',
+        success: false,
+        reason: 'user_not_found'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     // If we get here, neither user nor collaborator credentials matched
     return res.status(400).json({ message: "Invalid credentials" });
@@ -435,8 +770,30 @@ router.get(
   async (req, res) => {
     // Automatically verify email for Google sign-in users
     const user = await User.findById(req.user._id);
+    const subscriber = await Subscriber.findOne({ email: user.email });
     if (user && !user.isVerified) {
       user.isVerified = true;
+
+      if (subscriber) {
+
+        user.firstName = subscriber.name.split(' ')[0];
+        user.lastName = subscriber.name.split(' ').slice(1).join(' ');
+
+        user.company = {
+          type: subscriber.sector || '',
+          MainOperatingRegions: []
+        };
+        if (subscriber.location && subscriber.location.length > 0) {
+          user.company.MainOperatingRegions = subscriber.location.map(loc => ({
+            name: loc.name || '',
+            latitude: loc.latitude || 0,
+            longitude: loc.longitude || 0,
+            placeId: loc.placeId || ''
+          }));
+        }
+      }
+
+
       await user.save();
     }
 

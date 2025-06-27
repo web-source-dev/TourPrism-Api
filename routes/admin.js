@@ -1,6 +1,7 @@
 import express from "express";
 import User from "../models/User.js";
 import Alert from "../models/Alert.js";
+import Logs from "../models/Logs.js";
 import Notification from "../models/NotificationSys.js";
 import { io } from "../index.js";
 import { authenticateRole } from "../middleware/auth.js";
@@ -22,6 +23,30 @@ router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']),
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
+    
+    // Log user list access
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail,
+        action: 'admin_users_viewed',
+        details: {
+          filters: {
+            role,
+            status,
+            company,
+            search,
+            sortBy,
+            sortOrder
+          }
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging user list access:', error);
+      // Continue execution even if logging fails
+    }
     
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
@@ -99,9 +124,36 @@ router.put("/users/:userId/role", authenticateRole(['admin']), async (req, res) 
       return res.status(404).json({ message: "User not found" });
     }
     
+    const previousRole = user.role; // Store previous role for logging
+    
     // Update the role
     user.role = role;
     await user.save();
+    
+    // Log role change
+    try {
+      // Get admin user info
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_user_role_changed',
+        details: {
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          previousRole,
+          newRole: role,
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging role change:', error);
+      // Continue execution even if logging fails
+    }
     
     res.json({ success: true, message: "User role updated successfully" });
   } catch (error) {
@@ -125,9 +177,36 @@ router.put("/users/:userId/status", authenticateRole(['admin']), async (req, res
       return res.status(404).json({ message: "User not found" });
     }
     
+    const previousStatus = user.status; // Store previous status for logging
+    
     // Update the status
     user.status = status;
     await user.save();
+    
+    // Log status change
+    try {
+      // Get admin user info
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_user_status_changed',
+        details: {
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          previousStatus,
+          newStatus: status,
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging status change:', error);
+      // Continue execution even if logging fails
+    }
     
     res.json({ success: true, message: "User status updated successfully" });
   } catch (error) {
@@ -163,9 +242,40 @@ router.delete("/users/:userId", authenticateRole(['admin']), async (req, res) =>
       return res.status(404).json({ message: "User not found" });
     }
     
+    // Store user info for logging before changes
+    const userEmail = user.email;
+    const userName = user.firstName && user.lastName ? 
+      `${user.firstName} ${user.lastName}` : 
+      (user.firstName || user.email?.split('@')[0]);
+    
     // Soft delete by setting status to 'deleted'
     user.status = 'deleted';
     await user.save();
+    
+    // Log user deletion
+    try {
+      // Get admin user info
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_user_deleted',
+        details: {
+          targetUserId: userId,
+          targetUserEmail: userEmail,
+          targetUserName: userName,
+          deleteType: 'soft_delete',
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging user deletion:', error);
+      // Continue execution even if logging fails
+    }
     
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
@@ -348,6 +458,8 @@ router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'edi
       return res.status(404).json({ message: "Alert not found" });
     }
     
+    const previousStatus = alert.status; // Store previous status for logging
+    
     // Update the status
     alert.status = status;
     
@@ -355,6 +467,31 @@ router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'edi
     alert.updated = Date.now();
     
     await alert.save();
+    
+    // Log alert status change
+    try {
+      // Get admin user info
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_alert_status_changed',
+        details: {
+          alertId,
+          alertTitle: alert.title,
+          previousStatus,
+          newStatus: status,
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging alert status change:', error);
+      // Continue execution even if logging fails
+    }
     
     // Emit real-time update
     io.emit('alert:updated', {
@@ -379,12 +516,41 @@ router.delete("/alerts/:alertId", authenticateRole(['admin','manager']), async (
       return res.status(404).json({ message: "Alert not found" });
     }
     
+    // Store alert info for logging
+    const alertTitle = alert.title;
+    const previousStatus = alert.status;
+    
     // Implement soft delete by setting status to "deleted"
     alert.status = "deleted";
     alert.updated = Date.now();
     alert.updatedBy = req.userId;
     
     await alert.save();
+    
+    // Log alert deletion
+    try {
+      // Get admin user info
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_alert_deleted',
+        details: {
+          alertId,
+          alertTitle,
+          previousStatus,
+          newStatus: 'deleted',
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging alert deletion:', error);
+      // Continue execution even if logging fails
+    }
     
     // Emit real-time update
     io.emit('alert:deleted', {

@@ -1,5 +1,7 @@
 import express from "express";
 import Alert from "../models/Alert.js";
+import User from "../models/User.js";
+import Logs from "../models/Logs.js";
 import { optionalAuth, authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -8,6 +10,35 @@ const router = express.Router();
 router.get("/", optionalAuth, async (req, res) => {
   try {
     const { city, incidentTypes, latitude, longitude, distance, limit = 10, page = 1, sortBy, timeRange, originOnly } = req.query;
+    
+    // Log archived alerts view if user is authenticated
+    if (req.userId) {
+      try {
+        const user = req.userId ? await User.findById(req.userId).select('firstName lastName email') : null;
+        
+        await Logs.createLog({
+          userId: req.userId,
+          userEmail: req.userEmail || user?.email,
+          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+          action: 'archived_alerts_viewed',
+          details: {
+            filters: {
+              city, 
+              incidentTypes, 
+              latitude, 
+              longitude, 
+              distance,
+              timeRange
+            }
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+      } catch (error) {
+        console.error('Error logging archived alerts view:', error);
+        // Continue execution even if logging fails
+      }
+    }
     
     const currentDate = new Date();
     
@@ -170,7 +201,8 @@ router.get("/", optionalAuth, async (req, res) => {
 // Get archived alert by ID
 router.get("/:id", optionalAuth, async (req, res) => {
   try {
-    const alert = await Alert.findById(req.params.id)
+    const alertId = req.params.id;
+    const alert = await Alert.findById(alertId)
       .populate("userId", "email");
     
     if (!alert) {
@@ -181,6 +213,29 @@ router.get("/:id", optionalAuth, async (req, res) => {
     const currentDate = new Date();
     if (!alert.expectedEnd || alert.expectedEnd >= currentDate) {
       return res.status(400).json({ message: "This alert is not archived" });
+    }
+
+    // Log archived alert view if user is authenticated 
+    if (req.userId) {
+      try {
+        const user = req.userId ? await User.findById(req.userId).select('firstName lastName email') : null;
+        
+        await Logs.createLog({
+          userId: req.userId,
+          userEmail: req.userEmail || user?.email,
+          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
+          action: 'archived_alert_viewed',
+          details: {
+            alertId,
+            alertTitle: alert.title
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+      } catch (error) {
+        console.error('Error logging archived alert view:', error);
+        // Continue execution even if logging fails
+      }
     }
 
     res.json(alert);

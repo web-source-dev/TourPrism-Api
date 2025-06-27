@@ -1,11 +1,12 @@
 import express from 'express';
 import User from '../models/User.js';
+import Logs from '../models/Logs.js';
 import CompanyNames from '../models/companyNames.js';
 import { authenticate, authenticateCollaboratorOrRole } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { sendCollaboratorInvitation } from '../utils/emailService.js';
+import sendCollaboratorInvitation from '../utils/emailTemplates/collaboratorInvitation.js';
 
 const router = express.Router();
 
@@ -37,6 +38,28 @@ router.get('/', authenticate, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    // Log profile view
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'profile_viewed',
+        details: {
+          isCollaborator: !!req.isCollaborator,
+          collaboratorRole: req.collaboratorRole || null
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging profile view:', error);
+      // Continue execution even if logging fails
+    }
+    
     res.json(user);
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -60,6 +83,12 @@ router.put('/personal-info', authenticate, canEditProfile, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Store original values for logging
+    const originalEmail = user.email;
+    const originalFirstName = user.firstName;
+    const originalLastName = user.lastName;
+    let emailChanged = false;
+    
     // Update fields
     user.firstName = firstName;
     user.lastName = lastName;
@@ -73,9 +102,45 @@ router.put('/personal-info', authenticate, canEditProfile, async (req, res) => {
       }
       user.email = email;
       user.isVerified = false; // Require re-verification if email changes
+      emailChanged = true;
     }
 
     await user.save();
+    
+    // Log personal info update
+    try {
+      const changes = {
+        firstName: originalFirstName !== firstName ? { from: originalFirstName, to: firstName } : undefined,
+        lastName: originalLastName !== lastName ? { from: originalLastName, to: lastName } : undefined,
+        email: emailChanged ? { from: originalEmail, to: email } : undefined
+      };
+      
+      // Clean up undefined fields
+      Object.keys(changes).forEach(key => {
+        if (!changes[key]) {
+          delete changes[key];
+        }
+      });
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'profile_personal_info_updated',
+        details: {
+          changes,
+          isCollaborator: !!req.isCollaborator,
+          collaboratorRole: req.collaboratorRole || null
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging personal info update:', error);
+      // Continue execution even if logging fails
+    }
     
     // Return updated user without sensitive fields
     const updatedUser = await User.findById(req.userId).select('-password -otp -otpExpiry -resetPasswordToken -resetPasswordExpiry');
@@ -91,18 +156,21 @@ router.put('/company-info', authenticate, canEditProfile, async (req, res) => {
   try {
     const { companyName, companyType, mainOperatingRegions } = req.body;
     
-    
     // Find and update user
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Store original values for logging
+    const originalCompanyName = user.company?.name;
+    const originalCompanyType = user.company?.type;
+    const originalRegions = user.company?.MainOperatingRegions || [];
+    
     // Initialize company object if it doesn't exist
     if (!user.company) {
       user.company = {};
     }
-
 
     // Update company fields
     if (companyName !== undefined) {
@@ -125,7 +193,10 @@ router.put('/company-info', authenticate, canEditProfile, async (req, res) => {
     }
     
     // Handle the updated mainOperatingRegions format with coordinates
+    let regionsChanged = false;
     if (mainOperatingRegions && Array.isArray(mainOperatingRegions)) {
+      regionsChanged = true;
+      
       // Check if we're receiving the new format (objects with coordinates) or legacy format (strings)
       const isNewFormat = mainOperatingRegions.length > 0 && 
                          typeof mainOperatingRegions[0] === 'object' &&
@@ -157,6 +228,43 @@ router.put('/company-info', authenticate, canEditProfile, async (req, res) => {
     }
 
     await user.save();
+    
+    // Log company info update
+    try {
+      const changes = {
+        companyName: companyName !== undefined && originalCompanyName !== companyName ? 
+          { from: originalCompanyName, to: companyName } : undefined,
+        companyType: companyType !== undefined && originalCompanyType !== companyType ? 
+          { from: originalCompanyType, to: companyType } : undefined,
+        regionsChanged: regionsChanged ? true : undefined
+      };
+      
+      // Clean up undefined fields
+      Object.keys(changes).forEach(key => {
+        if (!changes[key]) {
+          delete changes[key];
+        }
+      });
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'profile_company_info_updated',
+        details: {
+          changes,
+          isCollaborator: !!req.isCollaborator,
+          collaboratorRole: req.collaboratorRole || null
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging company info update:', error);
+      // Continue execution even if logging fails
+    }
     
     // Verify the company info was saved correctly
     const updatedUser = await User.findById(req.userId).select('-password -otp -otpExpiry -resetPasswordToken -resetPasswordExpiry');
@@ -293,6 +401,26 @@ router.get('/collaborators', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
+    // Log collaborators view
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'collaborators_viewed',
+        details: {
+          count: user.collaborators?.length || 0
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging collaborators view:', error);
+      // Continue execution even if logging fails
+    }
+    
     // Return collaborators with limited fields
     const collaborators = user.collaborators || [];
     
@@ -359,6 +487,28 @@ router.post('/collaborators/invite', authenticate, async (req, res) => {
     
     user.collaborators.push(newCollaborator);
     await user.save();
+    
+    // Log collaborator invitation
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'collaborator_invited',
+        details: {
+          collaboratorEmail: email,
+          collaboratorName: name || '',
+          role
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging collaborator invitation:', error);
+      // Continue execution even if logging fails
+    }
     
     // Send invitation email
     const inviteUrl = `${process.env.FRONTEND_URL}/invite/accept?token=${invitationToken}&email=${encodeURIComponent(email)}`;
@@ -460,9 +610,35 @@ router.put('/collaborators/:collaboratorId/role', authenticate, async (req, res)
       return res.status(404).json({ message: 'Collaborator not found' });
     }
     
+    const previousRole = collaborator.role;
+    
     // Update the role
     collaborator.role = role;
     await user.save();
+    
+    // Log collaborator role update
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'collaborator_role_updated',
+        details: {
+          collaboratorId,
+          collaboratorEmail: collaborator.email,
+          collaboratorName: collaborator.name || '',
+          previousRole,
+          newRole: role
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging collaborator role update:', error);
+      // Continue execution even if logging fails
+    }
     
     res.json({ message: 'Collaborator role updated successfully', collaborator });
   } catch (error) {
@@ -532,10 +708,42 @@ router.delete('/collaborators/:collaboratorId', authenticate, async (req, res) =
       return res.status(404).json({ message: 'Collaborator not found' });
     }
     
+    // Store collaborator info for logging
+    const collaboratorInfo = {
+      email: collaborator.email,
+      name: collaborator.name || '',
+      role: collaborator.role,
+      status: collaborator.status
+    };
+    
     // Remove the collaborator
     // Using pull method instead of remove() which is not available in newer Mongoose versions
     user.collaborators.pull({ _id: collaboratorId });
     await user.save();
+    
+    // Log collaborator removal
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'collaborator_deleted',
+        details: {
+          collaboratorId,
+          collaboratorEmail: collaboratorInfo.email,
+          collaboratorName: collaboratorInfo.name,
+          role: collaboratorInfo.role,
+          status: collaboratorInfo.status
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging collaborator deletion:', error);
+      // Continue execution even if logging fails
+    }
     
     res.json({ message: 'Collaborator removed successfully' });
   } catch (error) {

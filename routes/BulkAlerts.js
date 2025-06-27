@@ -3,6 +3,7 @@ import multer from 'multer';
 import { parse } from 'csv-parse';
 import { Readable } from 'stream';
 import Alert from '../models/Alert.js';
+import Logs from '../models/Logs.js';
 import { authenticateRole } from '../middleware/auth.js';
 import { io } from '../index.js';
 
@@ -170,6 +171,7 @@ router.post('/upload', authenticateRole(['admin', 'manager']), upload.single('fi
   let processedCount = 0;
   let successCount = 0;
   let createdAlerts = [];
+  const startTime = Date.now();
 
   try {
     // Create a readable stream from the buffer
@@ -352,13 +354,43 @@ router.post('/upload', authenticateRole(['admin', 'manager']), upload.single('fi
           });
         }
       })
-      .on('end', () => {
+      .on('end', async () => {
         // Emit real-time update for bulk alerts creation
         if (createdAlerts.length > 0) {
           io.emit('alerts:bulk-created', {
             count: createdAlerts.length,
             message: `${createdAlerts.length} alerts created via bulk upload`
           });
+        }
+        
+        // Calculate duration
+        const duration = Date.now() - startTime;
+        
+        // Log the bulk upload
+        try {
+          // Get user info for better logging
+          const userName = req.userEmail ? req.userEmail.split('@')[0] : 'Admin';
+          
+          await Logs.createLog({
+            userId: req.userId,
+            userEmail: req.userEmail,
+            userName,
+            action: 'bulk_alerts_uploaded',
+            details: {
+              totalProcessed: processedCount,
+              successCount,
+              errorCount: errors.length,
+              duration: `${duration}ms`,
+              filename: req.file.originalname,
+              fileSize: req.file.size,
+              firstAlertId: createdAlerts.length > 0 ? createdAlerts[0]._id : null,
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+          });
+        } catch (logError) {
+          console.error('Error logging bulk upload:', logError);
+          // Continue execution even if logging fails
         }
         
         res.json({
