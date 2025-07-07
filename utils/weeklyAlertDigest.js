@@ -1,23 +1,33 @@
-import SibApiV3Sdk from 'sib-api-v3-sdk';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 import Subscriber from '../models/subscribers.js';
 import Alert from '../models/Alert.js';
-import { format, addDays, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { transporter } from './emailService.js';
+import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
 
 dotenv.config();
 
-// Initialize Brevo API client
-const defaultClient = SibApiV3Sdk.ApiClient.instance;
-const apiKey = defaultClient.authentications['api-key'];
-apiKey.apiKey = process.env.BREVO_API_KEY;
-const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-
 // Format date to display in email
 const formatDate = (date) => {
-  return format(date, 'MMM dd, yyyy');
+  return format(date, 'MMM dd');
+};
+
+// Get emoji for alert category
+const getAlertEmoji = (category) => {
+  const emojiMap = {
+    'Weather': '🌦️',
+    'Transport': '🚂',
+    'Event': '🎪',
+    'Construction': '🏗️',
+    'Emergency': '🚨',
+    'Festival': '🎭',
+    'Road': '🚗',
+    'Other': '📢'
+  };
+  return emojiMap[category] || '📢';
 };
 
 // Get duration in days between two dates
@@ -117,91 +127,72 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
   try {
     console.log(`📧 Found ${alerts.length} relevant alerts for ${subscriber.email}`);
     
-    // Get the start and end of the current week
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-    const dateRange = `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
-    
-    // Prepare the main alert (first in the list)
-    const mainAlert = alerts[0];
-    const city = subscriber.location && subscriber.location.length > 0 
-      ? subscriber.location[0].name 
-      : 'Your area';
-    
-    // Build alerts content for the email - include all alerts
-    const alertsContent = alerts.map((alert, index) => {
-      return {
-        title: alert.title,
-        start: formatDate(alert.expectedStart),
-        duration: getDurationDays(alert.expectedStart, alert.expectedEnd),
-        summary: alert.description,
-        category: alert.alertCategory || 'General',
-        impact: alert.impact || 'Unknown'
-      };
-    });
-    
-    // Send email using Brevo template
-    const sender = {
-      email: process.env.EMAIL_FROM || 'alert@tourprism.com',
-      name: 'Tourprism Alerts'
-    };
+    // Find associated user if exists
+    const User = mongoose.model('User');
+    const user = await User.findOne({ email: subscriber.email });
 
-    const receivers = [
-      {
-        email: subscriber.email
-      }
-    ];
-
-    // Prepare email parameters to be sent to Brevo template
-    // Include all alerts in the parameters - updated for new template structure
+    // Prepare email parameters
     const params = {
-      city,
-      sector: subscriber.sector || 'Tourism',
-      date_range: dateRange,
-      // Main alert (first one)
-      title1: alerts[0]?.title || '',
-      start1: alerts[0]?.expectedStart ? formatDate(alerts[0].expectedStart) : '',
-      duration1: alerts[0]?.expectedStart && alerts[0]?.expectedEnd ? getDurationDays(alerts[0].expectedStart, alerts[0].expectedEnd) : 0,
-      summary1: alerts[0]?.description || '',
-      // Second alert
-      title2: alerts[1]?.title || '',
-      start2: alerts[1]?.expectedStart ? formatDate(alerts[1].expectedStart) : '',
-      duration2: alerts[1]?.expectedStart && alerts[1]?.expectedEnd ? getDurationDays(alerts[1].expectedStart, alerts[1].expectedEnd) : 0,
-      summary2: alerts[1]?.description || '',
-      // Third alert
-      title3: alerts[2]?.title || '',
-      start3: alerts[2]?.expectedStart ? formatDate(alerts[2].expectedStart) : '',
-      duration3: alerts[2]?.expectedStart && alerts[2]?.expectedEnd ? getDurationDays(alerts[2].expectedStart, alerts[2].expectedEnd) : 0,
-      summary3: alerts[2]?.description || '',
-      // Fourth alert
-      title4: alerts[3]?.title || '',
-      start4: alerts[3]?.expectedStart ? formatDate(alerts[3].expectedStart) : '',
-      duration4: alerts[3]?.expectedStart && alerts[3]?.expectedEnd ? getDurationDays(alerts[3].expectedStart, alerts[3].expectedEnd) : 0,
-      summary4: alerts[3]?.description || '',
-      // Fifth alert
-      title5: alerts[4]?.title || '',
-      start5: alerts[4]?.expectedStart ? formatDate(alerts[4].expectedStart) : '',
-      duration5: alerts[4]?.expectedStart && alerts[4]?.expectedEnd ? getDurationDays(alerts[4].expectedStart, alerts[4].expectedEnd) : 0,
-      summary5: alerts[4]?.description || ''
+      // User/Subscriber Info
+      FIRSTNAME: user?.firstName || subscriber.name || 'Traveler',
+      LOCATION: subscriber.location?.[0]?.name || 'Your Area',
+      
+      DISRUPTION_COUNT: alerts.length,
+      
+      // Company Info
+      COMPANY_NAME: 'Tourprism Limited',
+      COMPANY_LOCATION: 'Edinburgh, UK',
+      
+      // Alert Data
+      ...alerts.reduce((acc, alert, index) => ({
+        ...acc,
+        [`ALERT${index + 1}_EMOJI`]: getAlertEmoji(alert.alertCategory),
+        [`ALERT${index + 1}_HEADER`]: alert.title || '',
+        [`ALERT${index + 1}_START`]: alert.expectedStart ? formatDate(alert.expectedStart) : '',
+        [`ALERT${index + 1}_END`]: alert.expectedEnd ? formatDate(alert.expectedEnd) : '',
+        [`ALERT${index + 1}_BODY`]: alert.recommendation || alert.description || ''
+      }), {}),
+      
+      // Registration Status
+      IS_REGISTERED: user ? 'true' : 'false',
+      
+      // Links
+      SIGNUP_LINK: `${process.env.FRONTEND_URL}/signup`,
+      DASHBOARD_LINK: `${process.env.FRONTEND_URL}/feed`,
+      SUPPORT_EMAIL: 'support@tourprism.com',
+      WEBSITE: 'www.tourprism.com',
+      LINKEDIN: 'https://linkedin.com/company/tourprism',
+      TWITTER: 'https://twitter.com/tourprism',
+      
+      // Footer Links
+      unsubscribe: `${process.env.FRONTEND_URL}/unsubscribe?email=${encodeURIComponent(subscriber.email)}`,
+      update_profile: `${process.env.FRONTEND_URL}/profile`
     };
 
-    // Log the alerts being sent
-    console.log(`📋 Sending ${alerts.length} alerts to ${subscriber.email}:`);
-    alerts.forEach((alert, index) => {
-      console.log(`   ${index + 1}. ${alert.title} (${alert.alertCategory || 'No category'}) - ${alert.impact || 'No impact'}`);
+    // Generate HTML content using our template
+    const htmlContent = generateWeeklyDigestEmail(params);
+
+    // Send email using our email service
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'aabeyratne@tourprism.com',
+      to: subscriber.email,
+      subject: `Weekly Disruption Digest for ${params.LOCATION}`,
+      html: htmlContent
     });
 
-    // Create the email to send
-    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-    sendSmtpEmail.templateId = 5; // The Brevo template ID
-    sendSmtpEmail.sender = sender;
-    sendSmtpEmail.to = receivers;
-    sendSmtpEmail.params = params;
-
-    // Send the email through Brevo
-    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
     console.log(`✅ Weekly digest sent to ${subscriber.email} with ${alerts.length} alerts`);
-    return response;
+    
+    // Update the subscriber's lastWeeklyForecastReceived timestamp
+    await Subscriber.findByIdAndUpdate(subscriber._id, {
+      lastWeeklyForecastReceived: new Date()
+    });
+    
+    // Also update the user's lastWeeklyForecastReceived if they exist
+    if (user) {
+      await User.findByIdAndUpdate(user._id, {
+        lastWeeklyForecastReceived: new Date()
+      });
+    }
   } catch (error) {
     console.error(`❌ Error sending weekly digest to ${subscriber.email}:`, error);
     throw error;

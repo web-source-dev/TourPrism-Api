@@ -181,7 +181,7 @@ export const authenticateSubscription = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
     
-    if (!parentUser.isSubscribed) {
+    if (!parentUser.isPremium) {
       return res.status(403).json({ message: "Access denied. This feature requires an active subscription." });
     }
     
@@ -194,7 +194,7 @@ export const authenticateSubscription = async (req, res, next) => {
     return res.status(404).json({ message: "User not found" });
   }
 
-  if (!user.isSubscribed) {
+  if (!user.isPremium) {
     return res.status(403).json({ message: "Access denied. This feature requires an active subscription." });
   }
 

@@ -343,10 +343,10 @@ router.put('/preferences', authenticate, canEditProfile, async (req, res) => {
 // Update subscription status - only account owner and manager collaborators
 router.put('/subscription', authenticate, canEditProfile, async (req, res) => {
   try {
-    const { isSubscribed } = req.body;
+    const { isPremium } = req.body;
     
-    if (typeof isSubscribed !== 'boolean') {
-      return res.status(400).json({ message: 'isSubscribed must be a boolean value' });
+    if (typeof isPremium !== 'boolean') {
+      return res.status(400).json({ message: 'isPremium must be a boolean value' });
     }
     
     // Find and update user
@@ -356,13 +356,84 @@ router.put('/subscription', authenticate, canEditProfile, async (req, res) => {
     }
 
     // Update subscription status
-    user.isSubscribed = isSubscribed;
+    user.isPremium = isPremium;
     await user.save();
     // Return updated user without sensitive fields
     const updatedUser = await User.findById(req.userId).select('-password -otp -otpExpiry -resetPasswordToken -resetPasswordExpiry');
     res.json(updatedUser);
   } catch (error) {
     console.error('Error updating subscription status:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update business info - only account owner and manager collaborators
+router.put('/business-info', authenticate, canEditProfile, async (req, res) => {
+  try {
+    const {
+      companySize,
+      customerTypes,
+      otherCustomerType,
+      targetMarkets,
+      otherTargetMarket,
+      bookingWindows,
+      peakSeasons,
+      disruptionTypes,
+      otherDisruptionType,
+      disruptionFrequency
+    } = req.body;
+    
+    // Find and update user
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Initialize company object if it doesn't exist
+    if (!user.company) {
+      user.company = {};
+    }
+
+    // Update company fields
+    user.company.size = companySize;
+    user.company.customerTypes = customerTypes;
+    user.company.otherCustomerType = otherCustomerType;
+    user.company.targetMarkets = targetMarkets;
+    user.company.otherTargetMarket = otherTargetMarket;
+    user.company.bookingWindows = bookingWindows;
+    user.company.peakSeasons = peakSeasons;
+    user.company.disruptionTypes = disruptionTypes;
+    user.company.otherDisruptionType = otherDisruptionType;
+    user.company.disruptionFrequency = disruptionFrequency;
+
+    await user.save();
+    
+    // Log business info update
+    try {
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || user.email,
+        userName: user.firstName && user.lastName ? 
+          `${user.firstName} ${user.lastName}` : 
+          (user.firstName || user.email?.split('@')[0]),
+        action: 'profile_business_info_updated',
+        details: {
+          isCollaborator: !!req.isCollaborator,
+          collaboratorRole: req.collaboratorRole || null
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging business info update:', error);
+      // Continue execution even if logging fails
+    }
+    
+    // Return updated user without sensitive fields
+    const updatedUser = await User.findById(req.userId).select('-password -otp -otpExpiry -resetPasswordToken -resetPasswordExpiry');
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating business info:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

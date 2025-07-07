@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Alert from "../models/Alert.js";
 import Logs from "../models/Logs.js";
 import Notification from "../models/NotificationSys.js";
+import Subscriber from "../models/subscribers.js";
 import { io } from "../index.js";
 import { authenticateRole } from "../middleware/auth.js";
 
@@ -849,9 +850,8 @@ router.get("/dashboard", authenticateRole(['admin', 'manager', 'viewer', 'editor
     // In a real application, you'd track user logins and use that for this metric
     const activeUsers = await User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
     
-    // Get total subscribers (using a simple approximation since we don't have a specific subscription field)
-    // In a real application, you'd have a subscription model
-    const totalSubscribers = await User.countDocuments({ isVerified: true });
+    // Get total subscribers from the Subscriber model
+    const totalSubscribers = await Subscriber.countDocuments({ isActive: true });
     
     res.json({
       totalUsers,
@@ -861,6 +861,257 @@ router.get("/dashboard", authenticateRole(['admin', 'manager', 'viewer', 'editor
       activeUsers,
       totalSubscribers
     });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get all subscribers (admin only)
+router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      search,
+      sector,
+      isActive,
+      startDate,
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+    
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+    
+    // Build query
+    const query = {};
+    
+    if (search) {
+      query.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (sector && sector !== 'all') {
+      query.sector = sector;
+    }
+    
+    if (isActive !== undefined && isActive !== 'all') {
+      query.isActive = isActive === 'true';
+    }
+    
+    if (startDate && endDate) {
+      query.createdAt = { 
+        $gte: new Date(startDate), 
+        $lte: new Date(endDate) 
+      };
+    }
+    
+    // Determine sort order
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    
+    // Execute query with pagination
+    const subscribers = await Subscriber.find(query)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limitNumber);
+    
+    // Get total count for pagination
+    const totalCount = await Subscriber.countDocuments(query);
+    
+    res.json({ subscribers, totalCount });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Add user to subscriber list (admin only)
+router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const { userId, sector, location } = req.body;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    // Check if user is already a subscriber
+    const existingSubscriber = await Subscriber.findOne({ email: user.email });
+    if (existingSubscriber) {
+      return res.status(400).json({ message: "User is already a subscriber" });
+    }
+    
+    // Create new subscriber
+    const newSubscriber = new Subscriber({
+      name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName || user.email.split('@')[0],
+      email: user.email,
+      sector: sector || 'Tourism',
+      location: location || user.company?.MainOperatingRegions || [],
+      createdAt: new Date(),
+      isActive: true
+    });
+    
+    await newSubscriber.save();
+    
+    // Update user's weekly forecast subscription status
+    user.weeklyForecastSubscribed = true;
+    user.weeklyForecastSubscribedAt = new Date();
+    await user.save();
+    
+    // Log the action
+    try {
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_user_added_to_subscribers',
+        details: {
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          sector: sector || 'Tourism',
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging subscriber addition:', error);
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      message: "User added to subscriber list successfully",
+      subscriber: newSubscriber
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Remove user from subscriber list (admin only)
+router.delete("/subscribers/:subscriberId", authenticateRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const { subscriberId } = req.params;
+    
+    const subscriber = await Subscriber.findById(subscriberId);
+    if (!subscriber) {
+      return res.status(404).json({ message: "Subscriber not found" });
+    }
+    
+    // Update user's weekly forecast subscription status if they exist
+    const user = await User.findOne({ email: subscriber.email });
+    if (user) {
+      user.weeklyForecastSubscribed = false;
+      user.weeklyForecastSubscribedAt = null;
+      await user.save();
+    }
+    
+    // Store subscriber info for logging
+    const subscriberEmail = subscriber.email;
+    const subscriberName = subscriber.name;
+    
+    // Remove the subscriber
+    await Subscriber.findByIdAndDelete(subscriberId);
+    
+    // Log the action
+    try {
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_subscriber_removed',
+        details: {
+          subscriberId,
+          subscriberEmail,
+          subscriberName,
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging subscriber removal:', error);
+    }
+    
+    res.json({ success: true, message: "Subscriber removed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Update subscriber status (admin only)
+router.put("/subscribers/:subscriberId/status", authenticateRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const { subscriberId } = req.params;
+    const { isActive } = req.body;
+    
+    const subscriber = await Subscriber.findById(subscriberId);
+    if (!subscriber) {
+      return res.status(404).json({ message: "Subscriber not found" });
+    }
+    
+    const previousStatus = subscriber.isActive;
+    subscriber.isActive = isActive;
+    await subscriber.save();
+    
+    // Update user's weekly forecast subscription status if they exist
+    const user = await User.findOne({ email: subscriber.email });
+    if (user) {
+      user.weeklyForecastSubscribed = isActive;
+      if (isActive && !user.weeklyForecastSubscribedAt) {
+        user.weeklyForecastSubscribedAt = new Date();
+      }
+      await user.save();
+    }
+    
+    // Log the action
+    try {
+      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
+      
+      await Logs.createLog({
+        userId: req.userId,
+        userEmail: req.userEmail || adminUser?.email,
+        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
+        action: 'admin_subscriber_status_changed',
+        details: {
+          subscriberId,
+          subscriberEmail: subscriber.email,
+          previousStatus,
+          newStatus: isActive,
+          adminRole: adminUser?.role || 'admin'
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    } catch (error) {
+      console.error('Error logging subscriber status change:', error);
+    }
+    
+    res.json({ success: true, message: "Subscriber status updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get subscriber details (admin only)
+router.get("/subscribers/:subscriberId", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { subscriberId } = req.params;
+    
+    const subscriber = await Subscriber.findById(subscriberId);
+    if (!subscriber) {
+      return res.status(404).json({ message: "Subscriber not found" });
+    }
+    
+    res.json({ subscriber });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

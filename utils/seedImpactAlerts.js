@@ -830,6 +830,505 @@ const createTestAlerts = async (userId) => {
       expectedStart: getDateFromNow(0),  // Starts today
       expectedEnd: getDateFromNow(7),    // 7-day duration
       createdAt: getDateFromNow(-1),     // Posted yesterday
+    },
+    
+    // Additional 15 alerts for the 5 locations
+    
+    // Edinburgh alerts
+    {
+      title: "Test Alert - Edinburgh Festival Road Closures",
+      description: "Multiple road closures in central Edinburgh due to summer festival events",
+      originCity: "Edinburgh",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJIyaYpQC4h0gRJxfnfHsU8mQ",
+      originLatitude: 55.9533, 
+      originLongitude: -3.1883,
+      alertCategory: "Festivals and Events",
+      alertType: "Citywide Festival",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists", "Business Travelers"],
+      linkToSource: "https://www.edinburghfestivalcity.com/",
+      expectedStart: getDateFromNow(1),  // Starts tomorrow
+      expectedEnd: getDateFromNow(14),   // 14-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Edinburgh Tram Works",
+      description: "Tram extension works causing significant disruption on Leith Walk",
+      originCity: "Edinburgh",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJIyaYpQC4h0gRJxfnfHsU8mQ",
+      originLatitude: 55.9533, 
+      originLongitude: -3.1883,
+      alertCategory: "Infrastructure Failures",
+      alertType: "Road, Rail & Tram Closure",
+      impact: "Severe",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Residents", "Commuters", "Business Travelers"],
+      linkToSource: "https://edinburghtrams.com/",
+      expectedStart: getDateFromNow(0),  // Started today
+      expectedEnd: getDateFromNow(21),   // 21-day duration
+      createdAt: getDateFromNow(-2),     // Posted 2 days ago
+    },
+    {
+      title: "Test Alert - Edinburgh Castle Special Exhibition",
+      description: "Increased visitor numbers expected at Edinburgh Castle due to special exhibition",
+      originCity: "Edinburgh",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJIyaYpQC4h0gRJxfnfHsU8mQ",
+      originLatitude: 55.9533, 
+      originLongitude: -3.1883,
+      alertCategory: "Festivals and Events",
+      alertType: "Other",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Tourists", "Residents"],
+      linkToSource: "https://www.edinburghcastle.scot/",
+      expectedStart: getDateFromNow(3),  // Starts in 3 days
+      expectedEnd: getDateFromNow(33),   // 30-day duration
+      createdAt: now,                    // Posted today
+    },
+    
+    // Glasgow alerts
+    {
+      title: "Test Alert - Glasgow Underground Maintenance",
+      description: "Weekend closure of Glasgow Subway for essential maintenance",
+      originCity: "Glasgow",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ685WIFYViEgRHlHvBbiD5nE",
+      originLatitude: 55.8642, 
+      originLongitude: -4.2518,
+      alertCategory: "Transportation",
+      alertType: "Disruption",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Standard",
+      targetAudience: ["Residents", "Commuters", "Tourists"],
+      linkToSource: "https://www.spt.co.uk/subway/",
+      expectedStart: getDateFromNow(2),  // Starts in 2 days
+      expectedEnd: getDateFromNow(4),    // 2-day duration
+      createdAt: getDateFromNow(-1),     // Posted yesterday
+    },
+    {
+      title: "Test Alert - Glasgow Concert Crowd Management",
+      description: "Major concert at the Hydro - expect significant crowds and traffic disruption",
+      originCity: "Glasgow",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ685WIFYViEgRHlHvBbiD5nE",
+      originLatitude: 55.8642, 
+      originLongitude: -4.2518,
+      alertCategory: "Festivals and Events",
+      alertType: "Concerts and Stadium Events",
+      impact: "Moderate",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists"],
+      linkToSource: "https://www.sec.co.uk/",
+      expectedStart: getDateFromNow(5),  // Starts in 5 days
+      expectedEnd: getDateFromNow(5),    // 1-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Glasgow Water Supply Interruption",
+      description: "Planned water supply interruption in West End for infrastructure upgrades",
+      originCity: "Glasgow",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ685WIFYViEgRHlHvBbiD5nE",
+      originLatitude: 55.8642, 
+      originLongitude: -4.2518,
+      alertCategory: "Infrastructure Failures",
+      alertType: "Other",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Residents", "Business Owners"],
+      linkToSource: "https://www.scottishwater.co.uk/",
+      expectedStart: getDateFromNow(1),  // Starts tomorrow
+      expectedEnd: getDateFromNow(2),    // 1-day duration
+      createdAt: getDateFromNow(0),      // Posted today
+    },
+    
+    // London alerts
+    {
+      title: "Test Alert - London Tube Strike",
+      description: "Planned tube strike affecting all London Underground services",
+      originCity: "London",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+      originLatitude: 51.5074, 
+      originLongitude: -0.1278,
+      alertCategory: "Industrial Action",
+      alertType: "Strike",
+      impact: "Severe",
+      risk: "High",
+      priority: "Urgent",
+      targetAudience: ["Residents", "Commuters", "Tourists", "Business Travelers"],
+      linkToSource: "https://tfl.gov.uk/",
+      expectedStart: getDateFromNow(3),  // Starts in 3 days
+      expectedEnd: getDateFromNow(5),    // 2-day duration
+      createdAt: getDateFromNow(-1),     // Posted yesterday
+    },
+    {
+      title: "Test Alert - London Marathon Road Closures",
+      description: "Extensive road closures across central London for annual marathon",
+      originCity: "London",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+      originLatitude: 51.5074, 
+      originLongitude: -0.1278,
+      alertCategory: "Festivals and Events",
+      alertType: "Sporting Event",
+      impact: "Moderate",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists", "Business Travelers"],
+      linkToSource: "https://www.londonmarathon.org/",
+      expectedStart: getDateFromNow(7),  // Starts in 7 days
+      expectedEnd: getDateFromNow(7),    // 1-day duration
+      createdAt: getDateFromNow(-5),     // Posted 5 days ago
+    },
+    {
+      title: "Test Alert - London Thames Flood Warning",
+      description: "Flood warning in effect for areas near the River Thames due to high tides",
+      originCity: "London",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+      originLatitude: 51.5074, 
+      originLongitude: -0.1278,
+      alertCategory: "Extreme Weather",
+      alertType: "Flooding",
+      impact: "Severe",
+      risk: "High",
+      priority: "Urgent",
+      targetAudience: ["Residents", "Business Owners"],
+      linkToSource: "https://www.gov.uk/government/organisations/environment-agency",
+      expectedStart: getDateFromNow(0),  // Starting today
+      expectedEnd: getDateFromNow(2),    // 2-day duration
+      createdAt: new Date(now.getTime() - 3*60*60*1000), // Posted 3 hours ago
+    },
+    
+    // Manchester alerts
+    {
+      title: "Test Alert - Manchester Football Match",
+      description: "Major football match at Old Trafford - expect heavy traffic and crowding",
+      originCity: "Manchester",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ2_UmUkxNekgRqmv-BDgUvtk",
+      originLatitude: 53.4808, 
+      originLongitude: -2.2426,
+      alertCategory: "Festivals and Events",
+      alertType: "Sporting Event",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists"],
+      linkToSource: "https://www.manutd.com/",
+      expectedStart: getDateFromNow(2),  // Starts in 2 days
+      expectedEnd: getDateFromNow(2),    // 1-day duration
+      createdAt: getDateFromNow(-3),     // Posted 3 days ago
+    },
+    {
+      title: "Test Alert - Manchester Piccadilly Station Works",
+      description: "Reduced services at Manchester Piccadilly due to essential engineering works",
+      originCity: "Manchester",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ2_UmUkxNekgRqmv-BDgUvtk",
+      originLatitude: 53.4808, 
+      originLongitude: -2.2426,
+      alertCategory: "Transportation",
+      alertType: "Disruption",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Commuters", "Tourists", "Business Travelers"],
+      linkToSource: "https://www.nationalrail.co.uk/",
+      expectedStart: getDateFromNow(4),  // Starts in 4 days
+      expectedEnd: getDateFromNow(6),    // 2-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Manchester City Center Demonstration",
+      description: "Planned demonstration in Manchester City Center affecting traffic and businesses",
+      originCity: "Manchester",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ2_UmUkxNekgRqmv-BDgUvtk",
+      originLatitude: 53.4808, 
+      originLongitude: -2.2426,
+      alertCategory: "Civil Unrest",
+      alertType: "Demonstration",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Residents", "Business Owners", "Tourists"],
+      linkToSource: "https://www.gmp.police.uk/",
+      expectedStart: getDateFromNow(1),  // Starts tomorrow
+      expectedEnd: getDateFromNow(1),    // 1-day duration
+      createdAt: getDateFromNow(0),      // Posted today
+    },
+    
+    // Stirling alerts
+    {
+      title: "Test Alert - Stirling Highland Games",
+      description: "Annual Highland Games event with increased visitor numbers to the city",
+      originCity: "Stirling",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJA-VcbB_Eh0gRHXn3XbLwhcw",
+      originLatitude: 56.1165, 
+      originLongitude: -3.9369,
+      alertCategory: "Festivals and Events",
+      alertType: "Sporting Event",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Tourists", "Residents"],
+      linkToSource: "https://www.stirlinghighlandgames.com/",
+      expectedStart: getDateFromNow(10), // Starts in 10 days
+      expectedEnd: getDateFromNow(10),   // 1-day duration
+      createdAt: getDateFromNow(-2),     // Posted 2 days ago
+    },
+    {
+      title: "Test Alert - Stirling Castle Temporary Closure",
+      description: "Partial closure of Stirling Castle for maintenance and restoration work",
+      originCity: "Stirling",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJA-VcbB_Eh0gRHXn3XbLwhcw",
+      originLatitude: 56.1165, 
+      originLongitude: -3.9369,
+      alertCategory: "Infrastructure Failures",
+      alertType: "Other",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Tourists"],
+      linkToSource: "https://www.stirlingcastle.scot/",
+      expectedStart: getDateFromNow(5),  // Starts in 5 days
+      expectedEnd: getDateFromNow(19),   // 14-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Stirling University Graduation",
+      description: "Increased traffic and accommodation demand due to university graduation ceremonies",
+      originCity: "Stirling",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJA-VcbB_Eh0gRHXn3XbLwhcw",
+      originLatitude: 56.1165, 
+      originLongitude: -3.9369,
+      alertCategory: "Festivals and Events",
+      alertType: "Other",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists", "Business Travelers"],
+      linkToSource: "https://www.stir.ac.uk/",
+      expectedStart: getDateFromNow(14), // Starts in 14 days
+      expectedEnd: getDateFromNow(17),   // 3-day duration
+      createdAt: getDateFromNow(-1),     // Posted yesterday
+    },
+    
+    // Additional 10 more alerts with valid impact values
+    
+    // Edinburgh alerts
+    {
+      title: "Test Alert - Edinburgh Royal Mile Construction",
+      description: "Road works and pedestrian diversions on the Royal Mile",
+      originCity: "Edinburgh",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJIyaYpQC4h0gRJxfnfHsU8mQ",
+      originLatitude: 55.9533, 
+      originLongitude: -3.1883,
+      alertCategory: "Infrastructure Failures",
+      alertType: "Road, Rail & Tram Closure",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists", "Business Owners"],
+      linkToSource: "https://www.edinburgh.gov.uk/roadworks",
+      expectedStart: getDateFromNow(1),  // Starts tomorrow
+      expectedEnd: getDateFromNow(8),    // 7-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Edinburgh Airport Security Alert",
+      description: "Enhanced security screening causing delays at Edinburgh Airport",
+      originCity: "Edinburgh",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJIyaYpQC4h0gRJxfnfHsU8mQ",
+      originLatitude: 55.9533, 
+      originLongitude: -3.1883,
+      alertCategory: "Public Safety Incidents",
+      alertType: "Travel Advisory",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Tourists", "Business Travelers"],
+      linkToSource: "https://www.edinburghairport.com/",
+      expectedStart: getDateFromNow(0),  // Starting today
+      expectedEnd: getDateFromNow(3),    // 3-day duration
+      createdAt: new Date(now.getTime() - 2*60*60*1000), // Posted 2 hours ago
+    },
+    
+    // Glasgow alerts
+    {
+      title: "Test Alert - Glasgow Severe Storm Warning",
+      description: "Severe storm expected to hit Glasgow with potential for flooding and disruption",
+      originCity: "Glasgow",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ685WIFYViEgRHlHvBbiD5nE",
+      originLatitude: 55.8642, 
+      originLongitude: -4.2518,
+      alertCategory: "Extreme Weather",
+      alertType: "Storm",
+      impact: "Severe",
+      risk: "High",
+      priority: "Urgent",
+      targetAudience: ["Residents", "Tourists", "Business Owners"],
+      linkToSource: "https://www.metoffice.gov.uk/",
+      expectedStart: getDateFromNow(1),  // Starts tomorrow
+      expectedEnd: getDateFromNow(2),    // 1-day duration
+      createdAt: now,                    // Posted today
+    },
+    {
+      title: "Test Alert - Glasgow School Holiday Traffic",
+      description: "Increased traffic expected due to school holiday period",
+      originCity: "Glasgow",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ685WIFYViEgRHlHvBbiD5nE",
+      originLatitude: 55.8642, 
+      originLongitude: -4.2518,
+      alertCategory: "Transportation",
+      alertType: "Disruption",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Residents", "Commuters"],
+      linkToSource: "https://www.glasgow.gov.uk/",
+      expectedStart: getDateFromNow(7),  // Starts in 7 days
+      expectedEnd: getDateFromNow(21),   // 14-day duration
+      createdAt: getDateFromNow(-3),     // Posted 3 days ago
+    },
+    
+    // London alerts
+    {
+      title: "Test Alert - London Air Pollution Warning",
+      description: "High levels of air pollution expected in central London",
+      originCity: "London",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+      originLatitude: 51.5074, 
+      originLongitude: -0.1278,
+      alertCategory: "Health",
+      alertType: "Warning",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Residents", "Tourists", "Vulnerable Groups"],
+      linkToSource: "https://www.london.gov.uk/what-we-do/environment/pollution-and-air-quality",
+      expectedStart: getDateFromNow(0),  // Starting today
+      expectedEnd: getDateFromNow(4),    // 4-day duration
+      createdAt: getDateFromNow(-1),     // Posted yesterday
+    },
+    {
+      title: "Test Alert - London West End Performance Cancellations",
+      description: "Multiple West End shows canceled due to technical issues",
+      originCity: "London",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+      originLatitude: 51.5074, 
+      originLongitude: -0.1278,
+      alertCategory: "Festivals and Events",
+      alertType: "Other",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Tourists"],
+      linkToSource: "https://officiallondontheatre.com/",
+      expectedStart: getDateFromNow(0),  // Starting today
+      expectedEnd: getDateFromNow(2),    // 2-day duration
+      createdAt: new Date(now.getTime() - 5*60*60*1000), // Posted 5 hours ago
+    },
+    
+    // Manchester alerts
+    {
+      title: "Test Alert - Manchester Severe Traffic Incident",
+      description: "Major traffic incident on M60 causing significant delays",
+      originCity: "Manchester",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ2_UmUkxNekgRqmv-BDgUvtk",
+      originLatitude: 53.4808, 
+      originLongitude: -2.2426,
+      alertCategory: "Transportation",
+      alertType: "Disruption",
+      impact: "Severe",
+      risk: "High",
+      priority: "Urgent",
+      targetAudience: ["Commuters", "Residents", "Business Travelers"],
+      linkToSource: "https://www.highways.gov.uk/",
+      expectedStart: getDateFromNow(0),  // Starting today
+      expectedEnd: getDateFromNow(0),    // Ending today
+      createdAt: new Date(now.getTime() - 1*60*60*1000), // Posted 1 hour ago
+    },
+    {
+      title: "Test Alert - Manchester Museum Special Exhibition",
+      description: "Increased visitor numbers expected at Manchester Museum",
+      originCity: "Manchester",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJ2_UmUkxNekgRqmv-BDgUvtk",
+      originLatitude: 53.4808, 
+      originLongitude: -2.2426,
+      alertCategory: "Festivals and Events",
+      alertType: "Other",
+      impact: "Minor",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Tourists", "Residents"],
+      linkToSource: "https://www.museum.manchester.ac.uk/",
+      expectedStart: getDateFromNow(5),  // Starts in 5 days
+      expectedEnd: getDateFromNow(35),   // 30-day duration
+      createdAt: getDateFromNow(-2),     // Posted 2 days ago
+    },
+    
+    // Stirling alerts
+    {
+      title: "Test Alert - Stirling Bridge Maintenance",
+      description: "Essential maintenance work on Stirling Bridge causing traffic disruption",
+      originCity: "Stirling",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJA-VcbB_Eh0gRHXn3XbLwhcw",
+      originLatitude: 56.1165, 
+      originLongitude: -3.9369,
+      alertCategory: "Infrastructure Failures",
+      alertType: "Road, Rail & Tram Closure",
+      impact: "Moderate",
+      risk: "Medium",
+      priority: "Important",
+      targetAudience: ["Residents", "Commuters", "Tourists"],
+      linkToSource: "https://www.stirling.gov.uk/",
+      expectedStart: getDateFromNow(3),  // Starts in 3 days
+      expectedEnd: getDateFromNow(10),   // 7-day duration
+      createdAt: getDateFromNow(0),      // Posted today
+    },
+    {
+      title: "Test Alert - Stirling Hogmanay Celebrations",
+      description: "Road closures and public transport changes for Hogmanay celebrations",
+      originCity: "Stirling",
+      originCountry: "United Kingdom",
+      originPlaceId: "ChIJA-VcbB_Eh0gRHXn3XbLwhcw",
+      originLatitude: 56.1165, 
+      originLongitude: -3.9369,
+      alertCategory: "Festivals and Events",
+      alertType: "Citywide Festival",
+      impact: "Moderate",
+      risk: "Low",
+      priority: "Standard",
+      targetAudience: ["Residents", "Tourists"],
+      linkToSource: "https://www.stirling.gov.uk/events",
+      expectedStart: getDateFromNow(20), // Starts in 20 days
+      expectedEnd: getDateFromNow(21),   // 1-day duration
+      createdAt: getDateFromNow(-5),     // Posted 5 days ago
     }
   ];
   

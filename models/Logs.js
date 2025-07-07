@@ -33,7 +33,7 @@ const LogSchema = new mongoose.Schema({
       // Collaborator related
       'collaborator_invited', 'collaborator_activated', 'collaborator_restricted', 'collaborator_deleted',
       // Other
-      'profile_updated', 'summary_viewed', 'summary_generated'
+      'profile_updated', 'summary_viewed', 'summary_generated', 'profile_viewed','notifications_viewed'
     ]
   },
   details: {

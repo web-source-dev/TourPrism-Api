@@ -1,6 +1,8 @@
 import express from 'express';
 import Logs from '../models/Logs.js';
-import { createSubscriber } from '../controllers/subscriberController.js';
+import { createSubscriber, updateSubscriberStatusByEmail } from '../controllers/subscriberController.js';
+import Subscriber from '../models/subscribers.js';
+import User from '../models/User.js';
 
 const router = express.Router();
 
@@ -20,6 +22,34 @@ router.post('/', async (req, res) => {
   return createSubscriber(req, res);
 });
 
+// GET /api/subscribers/check/:email
+router.get('/check/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const subscriber = await Subscriber.findOne({ email });
+    
+    // Also check the User model for weeklyForecastSubscribed status
+    const user = await User.findOne({ email });
+    
+    // Determine subscription status from both models
+    // If either model shows active subscription, consider it active
+    const isActive = (subscriber && subscriber.isActive) || (user && user.weeklyForecastSubscribed);
+    
+    res.json({
+      exists: !!subscriber,
+      isActive: isActive
+    });
+  } catch (error) {
+    console.error('Error checking subscriber:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/subscribers/status/:email
+router.put('/status/:email', async (req, res) => {
+  return updateSubscriberStatusByEmail(req, res);
+});
+
 // GET /unsubscribe
 router.get('/unsubscribe', async (req, res) => {
   const { email } = req.query;
@@ -28,8 +58,13 @@ router.get('/unsubscribe', async (req, res) => {
     return res.status(404).json({ message: 'Subscriber not found' });
   }
 
-
   subscriber.isActive = false;
+  
+  // Also update the user model
+  await User.updateOne(
+    { email: email },
+    { $set: { weeklyForecastSubscribed: false } }
+  );
 
   await Logs.createLog({
     action: 'subscriber_unsubscribed',

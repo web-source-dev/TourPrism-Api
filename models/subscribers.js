@@ -6,6 +6,8 @@ const subscriberSchema = new mongoose.Schema({
     },
     email: {
         type: String,
+        required: true,
+        unique: true
     },
     location: [
         {
@@ -15,7 +17,6 @@ const subscriberSchema = new mongoose.Schema({
         placeId: String
         }
     ],
-
     sector: {
         type: String,
     },
@@ -24,6 +25,10 @@ const subscriberSchema = new mongoose.Schema({
         default: true,
     },
     createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    lastWeeklyForecastReceived: {
         type: Date,
     }
 },

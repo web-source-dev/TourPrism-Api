@@ -7,11 +7,15 @@ const userSchema = new mongoose.Schema(
     lastName:String,
     googleId: String,
     password: String,
-    isSubscribed: { type: Boolean, default: false },
+    isPremium: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
     role: { type: String, enum: ['user', 'admin','manager','viewer','editor'], default: 'user' },
     status: { type: String, enum: ['active', 'restricted', 'pending', 'deleted'], default: 'active' },
     lastLogin: { type: Date },
+    // Weekly forecast subscription fields
+    weeklyForecastSubscribed: { type: Boolean, default: false },
+    weeklyForecastSubscribedAt: { type: Date },
+    lastWeeklyForecastReceived: { type: Date },
     collaborators: [{
       name: String,
       email: String,
@@ -29,6 +33,91 @@ const userSchema = new mongoose.Schema(
     company: {
       name: { type: String, default: '' },
       type: { type: String, default: '' },
+      size: { type: String, enum: [
+        'Micro (1–10 staff)',
+        'Small (11–50 staff)',
+        'Medium (51–200 staff)',
+        'Large (201–500 staff)',
+        'Enterprise (500+ staff)'
+      ]},
+      customerTypes: [{
+        type: String,
+        enum: [
+          'Leisure Travelers',
+          'Business Travelers',
+          'Families',
+          'Group Tours',
+          'Cruise Passengers',
+          'Student Groups',
+          'Luxury Travelers',
+          'Budget Travelers',
+          'Other'
+        ]
+      }],
+      otherCustomerType: String,
+      targetMarkets: [{
+        type: String,
+        enum: [
+          'United Kingdom',
+          'United States',
+          'Germany',
+          'France',
+          'Spain',
+          'China',
+          'India',
+          'Australia',
+          'Canada',
+          'Netherlands',
+          'Italy',
+          'Ireland',
+          'Other'
+        ]
+      }],
+      otherTargetMarket: String,
+      bookingWindows: [{
+        type: String,
+        enum: [
+          'Last-minute (0–7 days before travel)',
+          'Short lead (1–4 weeks before)',
+          'Medium lead (1–3 months before)',
+          'Long lead (3+ months before)',
+          'Mixed / varies widely'
+        ]
+      }],
+      peakSeasons: [{
+        type: String,
+        enum: [
+          'Spring (Mar–May)',
+          'Summer (Jun–Aug)',
+          'Autumn (Sep–Nov)',
+          'Winter (Dec–Feb)',
+          'Year-round / No clear peak'
+        ]
+      }],
+      disruptionTypes: [{
+        type: String,
+        enum: [
+          'Flight delays & cancellations',
+          'Train or transit strike',
+          'Road closures / traffic',
+          'Weather-related disruptions',
+          'Civil unrest / protests',
+          'Staff shortages / scheduling issues',
+          'Event congestion / festival crowds',
+          'Other'
+        ]
+      }],
+      otherDisruptionType: String,
+      disruptionFrequency: {
+        type: String,
+        enum: [
+          'Rarely (few times a year)',
+          'Occasionally (monthly)',
+          'Frequently (weekly)',
+          'Constantly (daily or near-daily)',
+          'Not sure'
+        ]
+      },
       MainOperatingRegions: { 
         type: [{
           name: String,

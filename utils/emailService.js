@@ -5,6 +5,7 @@ import sendVerificationEmail from './emailTemplates/verification.js';
 import sendCollaboratorInvitation from './emailTemplates/collaboratorInvitation.js';
 import sendAlertNotificationToGuest from './emailTemplates/alertNotification-guests.js';
 import sendAlertNotificationToTeam from './emailTemplates/alertNotification-team.js';
+import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
 
 // Initialize Brevo API client
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
@@ -56,5 +57,6 @@ export default {
   sendVerificationEmail,
   sendCollaboratorInvitation,
   sendAlertNotificationToGuest,
-  sendAlertNotificationToTeam
+  sendAlertNotificationToTeam,
+  generateWeeklyDigestEmail
 };
