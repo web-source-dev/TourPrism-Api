@@ -208,7 +208,7 @@ router.post(
 // Get all alerts (with optional filtering)
 router.get("/", optionalAuth, async (req, res) => {
   try {
-    const { city, alertCategory, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly } = req.query;
+    const { city, alertCategory, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly, impact } = req.query;
     
     const currentDate = new Date();
     
@@ -220,6 +220,20 @@ router.get("/", optionalAuth, async (req, res) => {
         { expectedEnd: { $exists: false } }    // No end date specified
       ]
     };
+
+    // Impact level filter
+    if (impact) {
+      // Handle both array and single string cases
+      const impactLevels = Array.isArray(impact) ? impact : [impact];
+      // Ensure only valid impact levels are used
+      const validImpactLevels = impactLevels.filter(level => 
+        ['Minor', 'Moderate', 'Severe'].includes(level)
+      );
+      if (validImpactLevels.length > 0) {
+        query.impact = { $in: validImpactLevels };
+      }
+    }
+    console.log(impact);
     
     // City filter - check both origin city and impact cities unless originOnly is true
     if (city && typeof city === 'string') {

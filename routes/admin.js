@@ -6,8 +6,14 @@ import Notification from "../models/NotificationSys.js";
 import Subscriber from "../models/subscribers.js";
 import { io } from "../index.js";
 import { authenticateRole } from "../middleware/auth.js";
+import { getDashboardStats } from '../controllers/adminController.js';
 
 const router = express.Router();
+
+// Protect all admin routes with authentication and admin middleware
+
+// Dashboard stats route
+router.get('/dashboard/stats', authenticateRole(['admin']), getDashboardStats);
 
 // Get all users (admin only)
 router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']), async (req, res) => {
