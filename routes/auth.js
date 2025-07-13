@@ -903,4 +903,31 @@ router.post("/change-password", async (req, res) => {
   }
 });
 
+// Check if user account exists
+router.post("/check-account", async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    console.log(`Checking account existence for email: ${email}`);
+
+    // Check if user exists in User collection
+    const user = await User.findOne({ email });
+    
+    const exists = !!user;
+    console.log(`Account check result for ${email}: exists=${exists}`);
+    
+    res.json({ 
+      exists: exists,
+      message: user ? "User account found" : "No user account found"
+    });
+  } catch (error) {
+    console.error("Check account error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

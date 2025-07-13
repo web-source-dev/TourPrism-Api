@@ -28,15 +28,14 @@ router.get('/check/:email', async (req, res) => {
     const { email } = req.params;
     const subscriber = await Subscriber.findOne({ email });
     
-    // Also check the User model for weeklyForecastSubscribed status
-    const user = await User.findOne({ email });
+    // Only consider as subscribed if they exist in the Subscriber collection AND are active
+    const exists = !!subscriber;
+    let isActive = subscriber && subscriber.isActive;
     
-    // Determine subscription status from both models
-    // If either model shows active subscription, consider it active
-    const isActive = (subscriber && subscriber.isActive) || (user && user.weeklyForecastSubscribed);
+    console.log(`Subscriber check for ${email}: exists=${exists}, isActive=${isActive}, subscriber:`, subscriber);
     
     res.json({
-      exists: !!subscriber,
+      exists: exists,
       isActive: isActive
     });
   } catch (error) {
