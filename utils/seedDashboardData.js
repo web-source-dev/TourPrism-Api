@@ -31,7 +31,47 @@ const connectDB = async () => {
 
 // Constants
 const CITIES = ['Edinburgh', 'Glasgow', 'Stirling', 'Manchester', 'London'];
-const ALERT_CATEGORIES = ['Event', 'Promotion', 'News', 'Update', 'Warning'];
+// ALERT_TYPE_MAP and TARGET_AUDIENCE_OPTIONS from admin create page
+const ALERT_TYPE_MAP = {
+  "Industrial Action": ["Strike", "Work-to-Rule", "Labor Dispute", "Other"],
+  "Extreme Weather": ["Storm", "Flooding", "Heatwave", "Wildfire", "Snow", "Other"],
+  "Infrastructure Failures": ["Power Outage", "IT & System Failure", "Transport Service Suspension", "Road, Rail & Tram Closure", "Repairs or Delays", "Other"],
+  "Public Safety Incidents": ["Protest", "Crime", "Terror Threats", "Travel Advisory", "Other"],
+  "Festivals and Events": ["Citywide Festival", "Sporting Event", "Concerts and Stadium Events", "Parades and Ceremonies", "Other"]
+};
+const ALERT_CATEGORIES = Object.keys(ALERT_TYPE_MAP);
+const getRandomAlertType = (category) => getRandomElement(ALERT_TYPE_MAP[category]);
+const TARGET_AUDIENCE_OPTIONS = [
+  "Airline",
+  "Attraction",
+  "Car Rental",
+  "Cruise Line",
+  "DMO",
+  "Event Manager",
+  "Hotel",
+  "OTA",
+  "Tour Guide",
+  "Tour Operator",
+  "Travel Agency",
+  "Travel Media",
+  "Other"
+];
+// sectorOptions from subscribe page
+const SECTOR_OPTIONS = [
+  "Airline",
+  "Attraction",
+  "Car Rental",
+  "Cruise Line",
+  "DMO",
+  "Event Manager",
+  "Hotel",
+  "OTA",
+  "Tour Guide",
+  "Tour Operator",
+  "Travel Agency",
+  "Travel Media",
+  "Other"
+];
 const ALERT_TYPES = ['Road Closure', 'Festival', 'Construction', 'Weather', 'Public Transport'];
 const BUSINESS_TYPES = ['Restaurant', 'Hotel', 'Tourist Attraction', 'Museum', 'Event'];
 const COMPANY_TYPES = ['Tourism', 'Hospitality', 'Transportation', 'Entertainment', 'Retail'];
@@ -158,43 +198,29 @@ const generateAlerts = async (users, count) => {
   const sevenDaysAgo = subDays(today, 7);
   const thirtyDaysAgo = subDays(today, 30);
   const nextSevenDays = addDays(today, 7);
-  
-  // Create alerts
   for (let i = 0; i < count; i++) {
     const user = getRandomElement(users);
     const city = getRandomElement(CITIES);
     const coordinates = getRandomCoordinatesNearCity(city);
     const isActive = Math.random() > 0.3;
     const isUpcoming = Math.random() > 0.8;
-    
-    // Determine creation date - make some recent for "new alerts" metric
     let createdAt;
     if (i < count * 0.2) {
-      // 20% of alerts created in last 7 days
       createdAt = getRandomDate(sevenDaysAgo, today);
     } else {
-      // Rest created in last 30 days
       createdAt = getRandomDate(thirtyDaysAgo, sevenDaysAgo);
     }
-    
-    // Determine alert dates
     let startDate, expectedEnd;
     if (isUpcoming) {
-      // Upcoming alerts
       startDate = getRandomDate(today, nextSevenDays);
       expectedEnd = addDays(startDate, Math.floor(Math.random() * 14) + 1);
     } else {
-      // Current or past alerts
       startDate = getRandomDate(subDays(createdAt, 7), addDays(createdAt, 7));
       expectedEnd = Math.random() > 0.7 ? addDays(startDate, Math.floor(Math.random() * 14) + 1) : null;
     }
-    
-    // Generate followers (between 0 and 20)
     const followerCount = Math.floor(Math.random() * 20);
     const followers = [];
     const followedBy = [];
-    
-    // Add random followers
     for (let j = 0; j < followerCount; j++) {
       const follower = getRandomElement(users);
       followers.push({
@@ -203,7 +229,11 @@ const generateAlerts = async (users, count) => {
       });
       followedBy.push(follower._id);
     }
-    
+    // Use new category/type logic
+    const alertCategory = getRandomElement(ALERT_CATEGORIES);
+    const alertType = getRandomAlertType(alertCategory);
+    // Use new target audience logic
+    const targetAudience = [getRandomElement(TARGET_AUDIENCE_OPTIONS)];
     const alert = new Alert({
       userId: user._id,
       title: faker.lorem.sentence({ min: 3, max: 8 }),
@@ -217,7 +247,6 @@ const generateAlerts = async (users, count) => {
         type: 'Point',
         coordinates: [coordinates.longitude, coordinates.latitude]
       },
-      // Legacy fields for backward compatibility
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       city: city,
@@ -226,8 +255,8 @@ const generateAlerts = async (users, count) => {
         coordinates: [coordinates.longitude, coordinates.latitude]
       },
       status: isActive ? 'approved' : getRandomElement(ALERT_STATUSES),
-      alertCategory: getRandomElement(ALERT_CATEGORIES),
-      alertType: getRandomElement(ALERT_TYPES),
+      alertCategory,
+      alertType,
       createdAt,
       updatedAt: getRandomDate(createdAt, new Date()),
       startDate,
@@ -237,17 +266,13 @@ const generateAlerts = async (users, count) => {
       numberOfFollows: followerCount,
       impact: getRandomElement(['Minor', 'Moderate', 'Severe']),
       priority: getRandomElement(['Low', 'Medium', 'High']),
-      targetAudience: [getRandomElement(['Tourists', 'Locals', 'Business Travelers', 'Students'])],
+      targetAudience,
       addToEmailSummary: Math.random() > 0.5
     });
-    
     alerts.push(alert);
   }
-  
-  // Save all alerts
   await Alert.insertMany(alerts);
   console.log(`Created ${alerts.length} alerts successfully.`);
-  
   return alerts;
 };
 
@@ -258,24 +283,20 @@ const generateSubscribers = async (count) => {
   const today = new Date();
   const sevenDaysAgo = subDays(today, 7);
   const thirtyDaysAgo = subDays(today, 30);
-  
   for (let i = 0; i < count; i++) {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
-    const isActive = Math.random() > 0.1; // 90% active
+    const isActive = Math.random() > 0.1;
     const city = getRandomElement(CITIES);
     const coordinates = getRandomCoordinatesNearCity(city);
-    
-    // Determine creation date - make some recent for "new subscribers" metric
     let createdAt;
     if (i < count * 0.15) {
-      // 15% of subscribers created in last 7 days
       createdAt = getRandomDate(sevenDaysAgo, today);
     } else {
-      // Rest created in last 30 days
       createdAt = getRandomDate(thirtyDaysAgo, sevenDaysAgo);
     }
-    
+    // Use sector from SECTOR_OPTIONS
+    const sector = getRandomElement(SECTOR_OPTIONS);
     const subscriber = new Subscriber({
       name: `${firstName} ${lastName}`,
       email: faker.internet.email({ firstName, lastName }),
@@ -287,20 +308,16 @@ const generateSubscribers = async (count) => {
           placeId: faker.string.uuid()
         }
       ],
-      sector: getRandomElement(COMPANY_TYPES),
+      sector,
       isActive,
       createdAt,
       lastEngagement: isActive ? getRandomDate(sevenDaysAgo, today) : null,
       lastWeeklyForecastReceived: isActive ? getRandomDate(subDays(today, 14), today) : null
     });
-    
     subscribers.push(subscriber);
   }
-  
-  // Save all subscribers
   await Subscriber.insertMany(subscribers);
   console.log(`Created ${subscribers.length} subscribers successfully.`);
-  
   return subscribers;
 };
 

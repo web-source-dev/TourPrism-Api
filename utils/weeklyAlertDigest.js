@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 import Subscriber from '../models/subscribers.js';
 import Alert from '../models/Alert.js';
+import ForecastSendSummary from '../models/forecastSendSummary.js';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { transporter } from './emailService.js';
 import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
@@ -193,6 +194,26 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
         lastWeeklyForecastReceived: new Date()
       });
     }
+
+    // --- LOGGING TO DB ---
+    // Save a log entry for this send
+    const now = new Date();
+    const dayOfWeek = now.toLocaleDateString('en-GB', { weekday: 'long' });
+    const alertTypes = Array.from(new Set(alerts.map(a => a.alertCategory).filter(Boolean)));
+    const alertIds = alerts.map(a => a._id);
+    await ForecastSendSummary.create({
+      sentAt: now,
+      dayOfWeek,
+      location: subscriber.location?.[0]?.name || '',
+      alertTypes,
+      recipientCount: 1,
+      recipients: [subscriber.email],
+      alertIds,
+      digestType: 'weekly',
+      sector: subscriber.sector || '',
+      rawAlerts: alerts
+    });
+    // --- END LOGGING ---
   } catch (error) {
     console.error(`❌ Error sending weekly digest to ${subscriber.email}:`, error);
     throw error;
@@ -261,9 +282,9 @@ const processWeeklyDigests = async () => {
 const scheduleWeeklyDigests = () => {
   // '0 10 * * 1' = At 10:00 AM, only on Monday
   // Use edinburgh timezone offset
-  cron.schedule('0 10 * * 1', processWeeklyDigests, {
+  cron.schedule('44 * * * *', processWeeklyDigests, {
     scheduled: true,
-    timezone: "Europe/London" // Edinburgh time
+    timezone: "Asia/Karachi" // Paki time
   });
   
   console.log('Weekly alert digest job scheduled for Mondays at 10:00 AM Edinburgh time');

@@ -4,6 +4,7 @@ import Alert from "../models/Alert.js";
 import Logs from "../models/Logs.js";
 import Notification from "../models/NotificationSys.js";
 import Subscriber from "../models/subscribers.js";
+import ForecastSendSummary from "../models/forecastSendSummary.js";
 import { io } from "../index.js";
 import { authenticateRole } from "../middleware/auth.js";
 import { getDashboardStats } from '../controllers/adminController.js';
@@ -880,6 +881,7 @@ router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'edit
       limit = 10, 
       search,
       sector,
+      location,
       isActive,
       startDate,
       endDate,
@@ -903,6 +905,10 @@ router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'edit
     
     if (sector && sector !== 'all') {
       query.sector = sector;
+    }
+    
+    if (location && location !== 'all') {
+      query['location.name'] = location;
     }
     
     if (isActive !== undefined && isActive !== 'all') {
@@ -1118,6 +1124,114 @@ router.get("/subscribers/:subscriberId", authenticateRole(['admin', 'manager', '
     }
     
     res.json({ subscriber });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get forecast send summaries (admin only)
+router.get("/forecast-summaries", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      search,
+      location,
+      sector,
+      digestType,
+      startDate,
+      endDate,
+      sortBy = 'sentAt',
+      sortOrder = 'desc'
+    } = req.query;
+    
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+    
+    // Build query
+    const query = {};
+    
+    if (search) {
+      query.$or = [
+        { location: { $regex: search, $options: 'i' } },
+        { sector: { $regex: search, $options: 'i' } },
+        { digestType: { $regex: search, $options: 'i' } },
+        { dayOfWeek: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (location && location !== 'all') {
+      query.location = { $regex: location, $options: 'i' };
+    }
+    
+    if (sector && sector !== 'all') {
+      query.sector = sector;
+    }
+    
+    if (digestType && digestType !== 'all') {
+      query.digestType = digestType;
+    }
+    
+    if (startDate || endDate) {
+      query.sentAt = {};
+      if (startDate) {
+        query.sentAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.sentAt.$lte = new Date(endDate);
+      }
+    }
+    
+    // Determine sort order
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    
+    // Execute query with pagination
+    const summaries = await ForecastSendSummary.find(query)
+      .populate('alertIds', 'title alertCategory city originCity')
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limitNumber);
+    
+    // Get total count for pagination
+    const totalCount = await ForecastSendSummary.countDocuments(query);
+    
+    // Get unique locations, sectors, and digest types for filters
+    const [locations, sectors, digestTypes] = await Promise.all([
+      ForecastSendSummary.distinct('location'),
+      ForecastSendSummary.distinct('sector'),
+      ForecastSendSummary.distinct('digestType')
+    ]);
+    
+    res.json({ 
+      summaries, 
+      totalCount,
+      filters: {
+        locations: locations.filter(Boolean),
+        sectors: sectors.filter(Boolean),
+        digestTypes: digestTypes.filter(Boolean)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching forecast summaries:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get forecast summary details (admin only)
+router.get("/forecast-summaries/:summaryId", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { summaryId } = req.params;
+    
+    const summary = await ForecastSendSummary.findById(summaryId)
+      .populate('alertIds', 'title description alertCategory city originCity expectedStart expectedEnd impact risk');
+    
+    if (!summary) {
+      return res.status(404).json({ message: "Forecast summary not found" });
+    }
+    
+    res.json({ summary });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

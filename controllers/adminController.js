@@ -26,7 +26,8 @@ export const getDashboardStats = async (req, res) => {
       totalSubscribers,
       activeSubscribers,
       newSubscribers,
-      prevPeriodNewSubscribers
+      prevPeriodNewSubscribers,
+      unsubscribes
     ] = await Promise.all([
       // Alert metrics
       Alert.countDocuments({ status: { $ne: 'expired' } }),
@@ -44,7 +45,9 @@ export const getDashboardStats = async (req, res) => {
       Subscriber.countDocuments({}),
       Subscriber.countDocuments({ isActive: true }), // Changed to only count active subscribers
       Subscriber.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
-      Subscriber.countDocuments({ createdAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo } })
+      Subscriber.countDocuments({ createdAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo } }),
+      // Unsubscribes: isActive false and updatedAt in last 7 days
+      Subscriber.countDocuments({ isActive: false, updatedAt: { $gte: sevenDaysAgo } })
     ]);
 
     // Calculate percentage changes
@@ -394,7 +397,8 @@ export const getDashboardStats = async (req, res) => {
           active: activeSubscribers,
           activeChange: activeSubscribersChange,
           new: newSubscribers,
-          newChange: newSubscribersChange
+          newChange: newSubscribersChange,
+          unsubscribes
         }
       },
       regionalStats,
