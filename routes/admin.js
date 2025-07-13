@@ -32,30 +32,6 @@ router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']),
       sortOrder = 'desc'
     } = req.query;
     
-    // Log user list access
-    try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail,
-        action: 'admin_users_viewed',
-        details: {
-          filters: {
-            role,
-            status,
-            company,
-            search,
-            sortBy,
-            sortOrder
-          }
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging user list access:', error);
-      // Continue execution even if logging fails
-    }
-    
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
