@@ -25,6 +25,8 @@ router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']),
       role, 
       status,
       company,
+      location,
+      businessType,
       search,
       startDate,
       endDate,
@@ -57,10 +59,26 @@ router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']),
       query['company.name'] = { $regex: company, $options: 'i' };
     }
     
+    if (location) {
+      query['company.MainOperatingRegions.name'] = { $regex: location, $options: 'i' };
+    }
+    
+    if (businessType) {
+      query['company.type'] = { $regex: businessType, $options: 'i' };
+    }
+    
     if (startDate && endDate) {
       query.createdAt = { 
         $gte: new Date(startDate), 
         $lte: new Date(endDate) 
+      };
+    } else if (startDate) {
+      query.createdAt = { 
+        $gte: new Date(startDate)
+      };
+    } else if (endDate) {
+      query.createdAt = { 
+        $lte: new Date(endDate)
       };
     }
     
