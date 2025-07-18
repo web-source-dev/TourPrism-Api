@@ -2,12 +2,12 @@ import express from "express";
 import Alert from "../models/Alert.js";
 import User from "../models/User.js";
 import Logs from "../models/Logs.js";
-import { optionalAuth, authenticate } from "../middleware/auth.js";
+import { authenticateRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Get all archived alerts (alerts whose expectedEnd date has passed)
-router.get("/", optionalAuth, async (req, res) => {
+// Get all archived alerts (alerts whose expectedEnd date has passed) - Admin only
+router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
   try {
     const { city, incidentTypes, latitude, longitude, distance, limit = 10, page = 1, sortBy, timeRange, originOnly } = req.query;
     
@@ -15,25 +15,6 @@ router.get("/", optionalAuth, async (req, res) => {
     if (req.userId) {
       try {
         const user = req.userId ? await User.findById(req.userId).select('firstName lastName email') : null;
-        
-        await Logs.createLog({
-          userId: req.userId,
-          userEmail: req.userEmail || user?.email,
-          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-          action: 'archived_alerts_viewed',
-          details: {
-            filters: {
-              city, 
-              incidentTypes, 
-              latitude, 
-              longitude, 
-              distance,
-              timeRange
-            }
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
-        });
       } catch (error) {
         console.error('Error logging archived alerts view:', error);
         // Continue execution even if logging fails
@@ -138,11 +119,12 @@ router.get("/", optionalAuth, async (req, res) => {
       query.$and.push(geoQuery);
     }
 
-    // Pagination settings
+    // For admin users, fetch all alerts without pagination limits
+    // For non-authenticated users, apply limits
     let limitValue = parseInt(limit);
     let skipValue = (parseInt(page) - 1) * limitValue;
     
-    // Limit results for non-authenticated users
+    // Only apply limits for non-authenticated users
     if (!req.userId) {
       limitValue = 15;
       skipValue = 0;
@@ -168,14 +150,18 @@ router.get("/", optionalAuth, async (req, res) => {
         sortOptions = { expectedEnd: -1 };
     }
     
-    // Fetch archived alerts
-    const alerts = await Alert.find(query)
+    // Fetch archived alerts - no limit for admin users
+    let alertsQuery = Alert.find(query)
       .populate('userId', '_id email')
       .populate('followedBy', '_id')
-      .sort(sortOptions)
-      .skip(skipValue)
-      .limit(limitValue)
-      .lean();
+      .sort(sortOptions);
+    
+    // Only apply skip and limit for non-admin users
+    if (!req.userId) {
+      alertsQuery = alertsQuery.skip(skipValue).limit(limitValue);
+    }
+    
+    const alerts = await alertsQuery.lean();
 
     // Check if user is following each alert
     const transformedAlerts = alerts.map(alert => ({
@@ -198,8 +184,8 @@ router.get("/", optionalAuth, async (req, res) => {
   }
 });
 
-// Get archived alert by ID
-router.get("/:id", optionalAuth, async (req, res) => {
+// Get archived alert by ID - Admin only
+router.get("/:id", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
   try {
     const alertId = req.params.id;
     const alert = await Alert.findById(alertId)
