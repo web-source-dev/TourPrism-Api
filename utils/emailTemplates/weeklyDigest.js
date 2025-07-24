@@ -68,107 +68,34 @@ const generateWeeklyDigestEmail = (params) => {
     <html>
       <head>
         <meta charset="UTF-8" />
-        <style>
-          body {
-            font-family: Arial, sans-serif;
+      </head>
+      <body style="font-family: Arial, sans-serif;
             background-color: #fff;
             color: #000;
             padding: 30px;
             line-height: 1.6;
-            text-align: left;
-          }
-          .footer {
-            margin-top: 40px;
-            font-size: 14px;
-            color: #222;
-            text-align: left;
-            max-width: 400px;
-            padding-bottom: 0;
-          }
-          .footer-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-          }
-          .footer-img {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-right: 8px;
-          }
-          .footer-content {
-            flex: 1;
-            margin-left: 10px;
-          }
-          .footer-name {
-            font-weight: 700;
-            font-size: 20px;
-            margin-bottom: 2px;
-          }
-          .footer-message {
-            font-size: 15px;
-            margin-bottom: 4px;
-            font-weight: 500;
-          }
-          .footer-email {
-            color: #0066cc;
-            font-size: 15px;
-            text-decoration: none;
-            margin-bottom: 8px;
-            display: inline-block;
-          }
-          .footer-social {
-            margin: 8px 0 0 0;
-            border-radius: 5px;
-
-          }
-          .footer-social a {
-            height: 28px;
-            width: 28px;
-            display: inline-block;
-            margin-right: 8px;
-          }
-          .footer-divider {
-            border-top: 1px solid #eee;
-            margin: 24px 0 0 0;
-          }
-          .footer-links {
-            color: #bbb;
-            font-size: 14px;
-            margin-top: 12px;
-            padding-top: 8px;
-            text-align: left;
-          }
-          .footer-links a {
-            color: #bbb;
-            text-decoration: none;
-            margin: 0 8px;
-          }
-        </style>
-      </head>
-      <body>
+            text-align: left;">
         <div style="font-size:15px;margin-bottom:24px;text-align:left;">Hi ${FIRSTNAME},<br><br>
         We’ve reviewed what’s unfolding across <b>${LOCATION}</b> and selected the top 5 disruptions that are most likely to affect tour operators like you this week.<br><br>
         Here’s what to keep an eye on:
         </div>
         ${alertSections}
         <div style="font-size:15px;margin:32px 0 24px 0;text-align:left;">We’ll keep monitoring what’s coming and make sure you’re always informed early.<br><br>${ctaLink}</div>
-        <div class="footer">
-          <div class="footer-row">
-            <img src="${FooterImageUrl}" alt="Ashan" class="footer-img" />
-            <div class="footer-content">
-              <div class="footer-name">Ashan from Tourprism</div>
-              <div class="footer-message">Have thoughts or feedback?<br />I’d love to hear from you.</div>
-              <a href="mailto:support@tourprism.com" class="footer-email">support@tourprism.com</a>
-              <div class="footer-social">
-                <a href="${LINKEDIN}" target="_blank"><img src="${linkedinIcon}" alt="LinkedIn" style="width:28px;height:28px;vertical-align:middle;" /></a>
-                <a href="${TWITTER}" target="_blank"><img src="${twitterIcon}" alt="Twitter" style="width:28px;height:28px;vertical-align:middle;" /></a>
+        <div style="margin-top:40px;font-size:14px;color:#222;text-align:left;max-width:400px;padding-bottom:0;">
+          <div style="display:flex;align-items:flex-start;gap:16px;">
+            <img src="${FooterImageUrl}" alt="Ashan" style="width:70px;height:70px;border-radius:50%;object-fit:cover;margin-right:8px;" />
+            <div style="margin-left:10px;">
+              <div style="font-weight:700;font-size:20px;margin-bottom:2px;">Ashan from Tourprism</div>
+              <div style="font-size:15px;margin-bottom:4px;font-weight:500;">Have thoughts or feedback?<br />I’d love to hear from you.</div>
+              <a href="mailto:support@tourprism.com" style="color:#0066cc;font-size:15px;text-decoration:none;margin-bottom:8px;display:inline-block;">support@tourprism.com</a>
+              <div style="margin:8px 0 0 0;border-radius:5px;">
+                <a href="${LINKEDIN}" target="_blank" style="height:28px;width:28px;display:inline-block;margin-right:8px;"><img src="${linkedinIcon}" alt="LinkedIn" style="width:28px;height:28px;vertical-align:middle;" /></a>
+                <a href="${TWITTER}" target="_blank" style="height:28px;width:28px;display:inline-block;margin-right:8px;"><img src="${twitterIcon}" alt="Twitter" style="width:28px;height:28px;vertical-align:middle;" /></a>
               </div>
-              <div class="footer-divider"></div>
-              <div class="footer-links">
-                <a href="${update_profile}">Update Preferences</a> |
-                <a href="${unsubscribe}">Unsubscribe</a>
+              <div style="border-top:1px solid #eee;margin:24px 0 0 0;"></div>
+              <div style="color:#bbb;font-size:14px;margin-top:12px;padding-top:8px;text-align:left;">
+                <a href="${update_profile}" style="color:#bbb;text-decoration:none;margin:0 8px;">Update Preferences</a> |
+                <a href="${unsubscribe}" style="color:#bbb;text-decoration:none;margin:0 8px;">Unsubscribe</a>
               </div>
             </div>
           </div>
