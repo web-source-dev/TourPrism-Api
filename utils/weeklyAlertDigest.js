@@ -243,7 +243,7 @@ const processWeeklyDigests = async () => {
     }
     
     // Get all subscribers
-    const subscribers = await Subscriber.find({email: 'muhammadnouman72321@gmail.com'}).lean();
+    const subscribers = await Subscriber.find().lean();
     console.log(`👥 Found ${subscribers.length} subscribers to process`);
     
     let totalEmailsSent = 0;
@@ -293,7 +293,7 @@ const processWeeklyDigests = async () => {
 const scheduleWeeklyDigests = () => {
   // '0 10 * * 1' = At 10:00 AM, only on Monday
   // Use edinburgh timezone offset
-  cron.schedule('*/1 * * * *', processWeeklyDigests, {
+  cron.schedule('0 10 * * 1', processWeeklyDigests, {
     scheduled: true,
     timezone: "Europe/London" // Edinburgh time
   });
