@@ -5,7 +5,7 @@ import connectDB from '../config/db.js';
 import Subscriber from '../models/subscribers.js';
 import Alert from '../models/Alert.js';
 import ForecastSendSummary from '../models/forecastSendSummary.js';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { transporter } from './emailService.js';
 import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
 
@@ -13,7 +13,17 @@ dotenv.config();
 
 // Format date to display in email
 const formatDate = (date) => {
-  return format(date, 'MMM dd');
+  if (!date) return '';
+  let d = date;
+  if (typeof date === 'string') {
+    try {
+      d = parseISO(date);
+    } catch (e) {
+      d = new Date(date);
+    }
+  }
+  if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+  return format(d, 'MMM dd h:mmaaa').replace('AM', 'am').replace('PM', 'pm');
 };
 
 // Get emoji for alert category
@@ -151,7 +161,8 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
         [`ALERT${index + 1}_HEADER`]: alert.title || '',
         [`ALERT${index + 1}_START`]: alert.expectedStart ? formatDate(alert.expectedStart) : '',
         [`ALERT${index + 1}_END`]: alert.expectedEnd ? formatDate(alert.expectedEnd) : '',
-        [`ALERT${index + 1}_BODY`]: alert.recommendation || alert.description || ''
+        [`ALERT${index + 1}_BODY`]: alert.description || '',
+        [`ALERT${index + 1}_RECOMMENDED`]: alert.recommendedAction || ''
       }), {}),
       
       // Registration Status
@@ -177,7 +188,7 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'aabeyratne@tourprism.com',
       to: subscriber.email,
-      subject: `Weekly Disruption Digest for ${params.LOCATION}`,
+      subject: `Weekly Disruption Forecast for ${params.LOCATION}`,
       html: htmlContent
     });
 
@@ -232,7 +243,7 @@ const processWeeklyDigests = async () => {
     }
     
     // Get all subscribers
-    const subscribers = await Subscriber.find().lean();
+    const subscribers = await Subscriber.find({email: 'muhammadnouman72321@gmail.com'}).lean();
     console.log(`👥 Found ${subscribers.length} subscribers to process`);
     
     let totalEmailsSent = 0;
@@ -282,7 +293,7 @@ const processWeeklyDigests = async () => {
 const scheduleWeeklyDigests = () => {
   // '0 10 * * 1' = At 10:00 AM, only on Monday
   // Use edinburgh timezone offset
-  cron.schedule('0 10 * * 1', processWeeklyDigests, {
+  cron.schedule('*/1 * * * *', processWeeklyDigests, {
     scheduled: true,
     timezone: "Europe/London" // Edinburgh time
   });
