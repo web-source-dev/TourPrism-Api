@@ -34,7 +34,7 @@ const generateWeeklyDigestEmail = (params) => {
     }
     return `
       <div style="${!isFirst ? 'border-top:1px solid #eee;margin-top:24px;padding-top:20px;' : ''}margin-bottom:24px;text-align:left;">
-        <div style="font-size:18px;font-weight:700;color:#111;display:flex;align-items:center;gap:8px;text-align:left;">
+        <div style="font-size:16px;font-weight:700;color:#111;display:flex;align-items:center;gap:8px;text-align:left;">
           <span style='margin-right:8px;'>${emoji}</span>${header}
         </div>
         <div style="font-size:14px;color:#444;margin:4px 0 8px 0;display:flex;align-items:center;text-align:left;">
@@ -76,7 +76,7 @@ const generateWeeklyDigestEmail = (params) => {
             line-height: 1.6;
             text-align: left;">
         <div style="font-size:15px;margin-bottom:24px;text-align:left;">Hi ${FIRSTNAME},<br><br>
-        We’ve reviewed what’s unfolding across <b>${LOCATION}</b> and selected the top 5 disruptions that are most likely to affect tour operators like you this week.<br><br>
+        We’ve reviewed what’s unfolding across ${LOCATION} and selected the top 5 disruptions that are most likely to affect tour operators like you this week.<br><br>
         Here’s what to keep an eye on:
         </div>
         ${alertSections}
@@ -85,7 +85,7 @@ const generateWeeklyDigestEmail = (params) => {
           <div style="display:flex;align-items:flex-start;gap:16px;">
             <img src="${FooterImageUrl}" alt="Ashan" style="width:70px;height:70px;border-radius:50%;object-fit:cover;margin-right:8px;" />
             <div style="margin-left:10px;">
-              <div style="font-weight:700;font-size:20px;margin-bottom:2px;">Ashan from Tourprism</div>
+              <div style="font-weight:700;font-size:18px;margin-bottom:2px;">Ashan from Tourprism</div>
               <div style="font-size:15px;margin-bottom:4px;font-weight:500;">Have thoughts or feedback?<br />I’d love to hear from you.</div>
               <a href="mailto:support@tourprism.com" style="color:#0066cc;font-size:15px;text-decoration:none;margin-bottom:8px;display:inline-block;">support@tourprism.com</a>
               <div style="margin:8px 0 0 0;border-radius:5px;">
