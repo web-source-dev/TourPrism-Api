@@ -241,6 +241,12 @@ const processWeeklyDigests = async () => {
     if (mongoose.connection.readyState !== 1) {
       await connectDB();
     }
+
+    // const Emails = [
+    //   "muhammadnouman72321@gmail.com",
+    //   "ashanhawks@yahoo.com",
+    //   "risetonet@hotmail.com"
+    // ]
     
     // Get all subscribers
     const subscribers = await Subscriber.find().lean();

@@ -83,7 +83,7 @@ const generateWeeklyDigestEmail = (params) => {
         <div style="font-size:15px;margin:32px 0 24px 0;text-align:left;">We’ll keep monitoring what’s coming and make sure you’re always informed early.<br><br>${ctaLink}</div>
         <div style="margin-top:40px;font-size:14px;color:#222;text-align:left;max-width:400px;padding-bottom:0;">
           <div style="display:flex;align-items:flex-start;gap:16px;">
-            <img src="${FooterImageUrl}" alt="Ashan" style="width:70px;height:70px;border-radius:50%;object-fit:cover;margin-right:8px;" />
+            <img src="${FooterImageUrl}" alt="Ashan" style="width:70px;height:70px;border-radius:50%;object-fit:cover;margin-right:8px;flex-shrink:0;" />
             <div style="margin-left:10px;">
               <div style="font-weight:700;font-size:18px;margin-bottom:2px;">Ashan from Tourprism</div>
               <div style="font-size:15px;margin-bottom:4px;font-weight:500;">Have thoughts or feedback?<br />I’d love to hear from you.</div>
@@ -94,8 +94,8 @@ const generateWeeklyDigestEmail = (params) => {
               </div>
               <div style="border-top:1px solid #eee;margin:24px 0 0 0;"></div>
               <div style="color:#bbb;font-size:14px;margin-top:12px;padding-top:8px;text-align:left;">
-                <a href="${update_profile}" style="color:#bbb;text-decoration:none;margin:0 8px;">Update Preferences</a> |
-                <a href="${unsubscribe}" style="color:#bbb;text-decoration:none;margin:0 8px;">Unsubscribe</a>
+                <a href="${update_profile}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:12px;">Update Preferences</a> |
+                <a href="${unsubscribe}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:12px;">Unsubscribe</a>
               </div>
             </div>
           </div>

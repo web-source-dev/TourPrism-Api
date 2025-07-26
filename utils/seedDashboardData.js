@@ -30,7 +30,7 @@ const connectDB = async () => {
 };
 
 // Constants
-const CITIES = ['Edinburgh', 'Glasgow', 'Stirling', 'Manchester', 'London'];
+const CITIES = ['Edinburgh'];
 // ALERT_TYPE_MAP and TARGET_AUDIENCE_OPTIONS from admin create page
 const ALERT_TYPE_MAP = {
   "Industrial Action": ["Strike", "Work-to-Rule", "Labor Dispute", "Other"],
@@ -85,19 +85,10 @@ const getRandomDate = (start, end) => {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 };
 
-// Helper function to generate random coordinates near a city
+// Helper function to generate random coordinates near Edinburgh
 const getRandomCoordinatesNearCity = (city) => {
-  // Base coordinates for each city
-  const cityCoordinates = {
-    'Edinburgh': { lat: 55.9533, lng: -3.1883 },
-    'Glasgow': { lat: 55.8642, lng: -4.2518 },
-    'Stirling': { lat: 56.1165, lng: -3.9369 },
-    'Manchester': { lat: 53.4808, lng: -2.2426 },
-    'London': { lat: 51.5074, lng: -0.1278 }
-  };
-  
-  // Get base coordinates for the city
-  const base = cityCoordinates[city] || { lat: 55.0, lng: -3.0 };
+  // Base coordinates for Edinburgh
+  const base = { lat: 55.9533, lng: -3.1883 };
   
   // Add random offset (approximately within 10km)
   const latOffset = (Math.random() - 0.5) * 0.1;
@@ -129,12 +120,12 @@ const generateUsers = async (count) => {
     company: {
       name: 'TourPrism Admin',
       type: 'Tourism',
-      MainOperatingRegions: CITIES.map(city => ({
-        name: city,
-        latitude: getRandomCoordinatesNearCity(city).latitude,
-        longitude: getRandomCoordinatesNearCity(city).longitude,
+      MainOperatingRegions: [{
+        name: 'Edinburgh',
+        latitude: getRandomCoordinatesNearCity('Edinburgh').latitude,
+        longitude: getRandomCoordinatesNearCity('Edinburgh').longitude,
         placeId: faker.string.uuid()
-      }))
+      }]
     }
   });
   
@@ -145,7 +136,7 @@ const generateUsers = async (count) => {
   for (let i = 0; i < count - 1; i++) {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
-    const randomCity = getRandomElement(CITIES);
+    const randomCity = 'Edinburgh';
     const coordinates = getRandomCoordinatesNearCity(randomCity);
     
     const user = new User({
@@ -192,24 +183,146 @@ const generateUsers = async (count) => {
 
 // Generate alerts
 const generateAlerts = async (users, count) => {
-  console.log(`\nGenerating ${count} alerts...`);
+  console.log(`\nGenerating ${count} alerts for Edinburgh...`);
   const alerts = [];
   const today = startOfDay(new Date());
   const sevenDaysAgo = subDays(today, 7);
   const thirtyDaysAgo = subDays(today, 30);
   const nextSevenDays = addDays(today, 7);
+  
+  // English alert content templates
+  const alertTemplates = {
+    "Industrial Action": {
+      titles: [
+        "Transport Strike Affecting Edinburgh City Centre",
+        "Rail Workers Industrial Action in Edinburgh",
+        "Bus Service Disruption Due to Strike Action",
+        "Edinburgh Airport Staff Industrial Action",
+        "Public Transport Strike Impacting Tourism"
+      ],
+      descriptions: [
+        "Industrial action by transport workers is causing significant disruption to public transport services across Edinburgh. Commuters and tourists should expect delays and cancellations.",
+        "A planned strike by rail workers is affecting train services to and from Edinburgh. Alternative transport arrangements should be considered.",
+        "Bus services in Edinburgh are experiencing disruption due to ongoing industrial action. Routes may be cancelled or delayed.",
+        "Airport staff at Edinburgh Airport are taking industrial action, which may affect flight operations and passenger services.",
+        "Tourism-related transport services are impacted by industrial action, affecting visitor movement around the city."
+      ],
+      recommendedActions: [
+        "Check transport provider websites for latest updates and alternative routes",
+        "Consider using alternative transport methods such as taxis or walking",
+        "Allow extra time for journeys and plan alternative routes in advance",
+        "Monitor social media for real-time updates from transport operators",
+        "Contact your transport provider directly for specific service information"
+      ]
+    },
+    "Extreme Weather": {
+      titles: [
+        "Severe Weather Warning for Edinburgh",
+        "Storm Conditions Affecting Edinburgh Tourism",
+        "Heavy Rainfall Causing Travel Disruption in Edinburgh",
+        "Snow and Ice Warning for Edinburgh Area",
+        "High Winds Impacting Edinburgh Attractions"
+      ],
+      descriptions: [
+        "Severe weather conditions are expected to impact Edinburgh over the next 24-48 hours. Tourism activities and transport may be affected.",
+        "Storm conditions are creating hazardous travel conditions in and around Edinburgh. Tourist attractions may close early.",
+        "Heavy rainfall is causing flooding and travel disruption across Edinburgh. Some tourist sites may be inaccessible.",
+        "Snow and ice conditions are making travel difficult in Edinburgh. Public transport may be delayed or cancelled.",
+        "High winds are affecting outdoor attractions and activities in Edinburgh. Safety measures are in place."
+      ],
+      recommendedActions: [
+        "Check weather forecasts and plan indoor activities as alternatives",
+        "Monitor transport updates and allow extra travel time",
+        "Contact attractions directly to confirm opening hours and accessibility",
+        "Consider postponing outdoor activities until conditions improve",
+        "Follow local authority advice and emergency service guidance"
+      ]
+    },
+    "Infrastructure Failures": {
+      titles: [
+        "Power Outage Affecting Edinburgh City Centre",
+        "IT System Failure at Edinburgh Tourist Information",
+        "Road Closure Due to Infrastructure Work in Edinburgh",
+        "Public Transport System Failure in Edinburgh",
+        "Water Supply Issues in Edinburgh Tourist Areas"
+      ],
+      descriptions: [
+        "A power outage is affecting businesses and attractions in Edinburgh city centre. Some services may be temporarily unavailable.",
+        "IT system failures are impacting tourist information services in Edinburgh. Online booking systems may be affected.",
+        "Essential infrastructure work has resulted in road closures in Edinburgh. Traffic diversions are in place.",
+        "Public transport systems are experiencing technical failures in Edinburgh. Services may be delayed or cancelled.",
+        "Water supply issues are affecting some tourist areas in Edinburgh. Restaurants and hotels may have limited services."
+      ],
+      recommendedActions: [
+        "Contact businesses directly to confirm services and opening hours",
+        "Use alternative routes and allow extra travel time",
+        "Check online platforms for service updates and alternatives",
+        "Consider postponing non-essential travel until services are restored",
+        "Follow official updates from service providers and local authorities"
+      ]
+    },
+    "Public Safety Incidents": {
+      titles: [
+        "Public Safety Alert in Edinburgh City Centre",
+        "Protest March Affecting Edinburgh Tourism Areas",
+        "Travel Advisory for Edinburgh Visitors",
+        "Security Incident Near Edinburgh Attractions",
+        "Public Safety Measures in Edinburgh Tourist Zone"
+      ],
+      descriptions: [
+        "A public safety incident has been reported in Edinburgh city centre. Tourist areas may be affected by increased security measures.",
+        "A planned protest march is expected to cause disruption in Edinburgh tourism areas. Alternative routes should be considered.",
+        "A travel advisory has been issued for visitors to Edinburgh. Some areas may have restricted access.",
+        "A security incident near major Edinburgh attractions has prompted safety measures. Tourist activities may be affected.",
+        "Enhanced public safety measures are in place in Edinburgh tourist zones. Visitors should follow official guidance."
+      ],
+      recommendedActions: [
+        "Avoid affected areas and follow official safety guidance",
+        "Use alternative routes and allow extra travel time",
+        "Monitor official updates and social media for latest information",
+        "Contact tourist information for alternative activity suggestions",
+        "Follow police and local authority instructions"
+      ]
+    },
+    "Festivals and Events": {
+      titles: [
+        "Major Festival Causing Traffic Disruption in Edinburgh",
+        "Edinburgh Festival Road Closures and Restrictions",
+        "Large Sporting Event Affecting Edinburgh Transport",
+        "Concert Event Impacting Edinburgh City Centre",
+        "Parade Route Closures in Edinburgh Tourist Areas"
+      ],
+      descriptions: [
+        "A major festival is taking place in Edinburgh, causing significant traffic disruption and road closures throughout the city centre.",
+        "The Edinburgh Festival is resulting in road closures and transport restrictions. Alternative routes and transport methods are recommended.",
+        "A large sporting event is affecting public transport and road access in Edinburgh. Delays are expected.",
+        "A major concert event is impacting traffic flow and parking in Edinburgh city centre. Public transport is recommended.",
+        "A parade is taking place in Edinburgh tourist areas, resulting in road closures and traffic diversions."
+      ],
+      recommendedActions: [
+        "Use public transport and avoid driving in affected areas",
+        "Plan alternative routes and allow extra travel time",
+        "Check event websites for specific road closure information",
+        "Consider visiting attractions outside the affected areas",
+        "Follow event organisers' guidance and official updates"
+      ]
+    }
+  };
+
   for (let i = 0; i < count; i++) {
     const user = getRandomElement(users);
-    const city = getRandomElement(CITIES);
+    const city = 'Edinburgh';
     const coordinates = getRandomCoordinatesNearCity(city);
     const isActive = Math.random() > 0.3;
     const isUpcoming = Math.random() > 0.8;
+    
     let createdAt;
     if (i < count * 0.2) {
       createdAt = getRandomDate(sevenDaysAgo, today);
     } else {
       createdAt = getRandomDate(thirtyDaysAgo, sevenDaysAgo);
     }
+    
     let startDate, expectedEnd;
     if (isUpcoming) {
       startDate = getRandomDate(today, nextSevenDays);
@@ -218,6 +331,7 @@ const generateAlerts = async (users, count) => {
       startDate = getRandomDate(subDays(createdAt, 7), addDays(createdAt, 7));
       expectedEnd = Math.random() > 0.7 ? addDays(startDate, Math.floor(Math.random() * 14) + 1) : null;
     }
+    
     const followerCount = Math.floor(Math.random() * 20);
     const followers = [];
     const followedBy = [];
@@ -229,15 +343,53 @@ const generateAlerts = async (users, count) => {
       });
       followedBy.push(follower._id);
     }
+    
     // Use new category/type logic
     const alertCategory = getRandomElement(ALERT_CATEGORIES);
     const alertType = getRandomAlertType(alertCategory);
-    // Use new target audience logic
     const targetAudience = [getRandomElement(TARGET_AUDIENCE_OPTIONS)];
+    
+    // Get template content for the alert category
+    const template = alertTemplates[alertCategory];
+    const title = getRandomElement(template.titles);
+    const description = getRandomElement(template.descriptions);
+    const recommendedAction = getRandomElement(template.recommendedActions);
+    
+    // Generate impact locations (multiple locations affected)
+    const impactLocations = [
+      {
+        latitude: coordinates.latitude + (Math.random() - 0.5) * 0.01,
+        longitude: coordinates.longitude + (Math.random() - 0.5) * 0.01,
+        city: city,
+        country: 'United Kingdom',
+        placeId: faker.string.uuid(),
+        location: {
+          type: 'Point',
+          coordinates: [coordinates.longitude + (Math.random() - 0.5) * 0.01, coordinates.latitude + (Math.random() - 0.5) * 0.01]
+        }
+      }
+    ];
+    
+    // Add additional impact locations for some alerts
+    if (Math.random() > 0.5) {
+      impactLocations.push({
+        latitude: coordinates.latitude + (Math.random() - 0.5) * 0.02,
+        longitude: coordinates.longitude + (Math.random() - 0.5) * 0.02,
+        city: city,
+        country: 'United Kingdom',
+        placeId: faker.string.uuid(),
+        location: {
+          type: 'Point',
+          coordinates: [coordinates.longitude + (Math.random() - 0.5) * 0.02, coordinates.latitude + (Math.random() - 0.5) * 0.02]
+        }
+      });
+    }
+    
     const alert = new Alert({
       userId: user._id,
-      title: faker.lorem.sentence({ min: 3, max: 8 }),
-      description: faker.lorem.paragraph(),
+      title: title,
+      description: description,
+      recommendedAction: recommendedAction,
       originLatitude: coordinates.latitude,
       originLongitude: coordinates.longitude,
       originCity: city,
@@ -247,6 +399,8 @@ const generateAlerts = async (users, count) => {
         type: 'Point',
         coordinates: [coordinates.longitude, coordinates.latitude]
       },
+      impactLocations: impactLocations,
+      // Legacy fields maintained for backward compatibility
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       city: city,
@@ -259,7 +413,7 @@ const generateAlerts = async (users, count) => {
       alertType,
       createdAt,
       updatedAt: getRandomDate(createdAt, new Date()),
-      startDate,
+      expectedStart: startDate,
       expectedEnd,
       followers,
       followedBy,
@@ -267,30 +421,51 @@ const generateAlerts = async (users, count) => {
       impact: getRandomElement(['Minor', 'Moderate', 'Severe']),
       priority: getRandomElement(['Low', 'Medium', 'High']),
       targetAudience,
-      addToEmailSummary: Math.random() > 0.5
+      addToEmailSummary: Math.random() > 0.5,
+      risk: Math.random() > 0.7 ? getRandomElement(['Low', 'Medium', 'High']) : null,
+      linkToSource: Math.random() > 0.8 ? faker.internet.url() : null,
+      media: Math.random() > 0.9 ? [{
+        url: faker.image.url(),
+        type: 'image'
+      }] : [],
+      likes: Math.floor(Math.random() * 50),
+      shares: Math.floor(Math.random() * 20),
+      version: 1,
+      isLatest: true,
+      updatedBy: Math.random() > 0.8 ? user.email : null
     });
+    
     alerts.push(alert);
   }
+  
   await Alert.insertMany(alerts);
   console.log(`Created ${alerts.length} alerts successfully.`);
   return alerts;
 };
 
 // Generate subscribers
-const generateSubscribers = async (count) => {
-  console.log(`\nGenerating ${count} subscribers...`);
+const generateSubscribers = async () => {
+  console.log(`\nGenerating 3 specific subscribers...`);
   const subscribers = [];
   const today = new Date();
   const sevenDaysAgo = subDays(today, 7);
   const thirtyDaysAgo = subDays(today, 30);
-  for (let i = 0; i < count; i++) {
+  
+  // Specific subscriber emails
+  const subscriberEmails = [
+    "muhammadnouman72321@gmail.com",
+    "ashanhawks@yahoo.com", 
+    "risetonet@hotmail.com"
+  ];
+  
+  for (let i = 0; i < subscriberEmails.length; i++) {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
     const isActive = Math.random() > 0.1;
-    const city = getRandomElement(CITIES);
+    const city = 'Edinburgh';
     const coordinates = getRandomCoordinatesNearCity(city);
     let createdAt;
-    if (i < count * 0.15) {
+    if (i < 1) {
       createdAt = getRandomDate(sevenDaysAgo, today);
     } else {
       createdAt = getRandomDate(thirtyDaysAgo, sevenDaysAgo);
@@ -299,7 +474,7 @@ const generateSubscribers = async (count) => {
     const sector = getRandomElement(SECTOR_OPTIONS);
     const subscriber = new Subscriber({
       name: `${firstName} ${lastName}`,
-      email: faker.internet.email({ firstName, lastName }),
+      email: subscriberEmails[i],
       location: [
         {
           name: city,
@@ -464,24 +639,20 @@ const generateSummaries = async (users, count) => {
       parameters: {
         filters: {
           categories: [getRandomElement(ALERT_CATEGORIES)],
-          cities: [getRandomElement(CITIES)]
+          cities: ['Edinburgh']
         }
       },
       timeRange: {
         startDate,
         endDate
       },
-      locations: Array(Math.floor(Math.random() * 3) + 1).fill().map(() => {
-        const city = getRandomElement(CITIES);
-        const coordinates = getRandomCoordinatesNearCity(city);
-        return {
-          city,
-          country: 'United Kingdom',
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
-          placeId: faker.string.uuid()
-        };
-      }),
+      locations: [{
+        city: 'Edinburgh',
+        country: 'United Kingdom',
+        latitude: getRandomCoordinatesNearCity('Edinburgh').latitude,
+        longitude: getRandomCoordinatesNearCity('Edinburgh').longitude,
+        placeId: faker.string.uuid()
+      }],
       htmlContent: `<h1>${faker.lorem.sentence()}</h1><p>${faker.lorem.paragraphs(3)}</p>`,
       emailDelivery: {
         scheduled: Math.random() > 0.7,
@@ -526,7 +697,7 @@ const seedData = async () => {
     // Generate data
     const users = await generateUsers(100);
     const alerts = await generateAlerts(users, 200);
-    await generateSubscribers(150);
+    await generateSubscribers();
     await generateCompanyNames(50);
     await generateActionHubs(users, alerts, 50);
     await generateNotifications(users, 300);
