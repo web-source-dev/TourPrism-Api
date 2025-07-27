@@ -72,7 +72,7 @@ const generateWeeklyDigestEmail = (params) => {
       <body style="font-family: Arial, sans-serif;
             background-color: #fff;
             color: #000;
-            padding: 30px;
+            padding: 10px;
             line-height: 1.6;
             text-align: left;">
         <div style="font-size:15px;margin-bottom:24px;text-align:left;">Hi ${FIRSTNAME},<br><br>
@@ -92,12 +92,18 @@ const generateWeeklyDigestEmail = (params) => {
                 <a href="${LINKEDIN}" target="_blank" style="height:28px;width:28px;display:inline-block;margin-right:8px;"><img src="${linkedinIcon}" alt="LinkedIn" style="width:28px;height:28px;vertical-align:middle;" /></a>
                 <a href="${TWITTER}" target="_blank" style="height:28px;width:28px;display:inline-block;margin-right:8px;"><img src="${twitterIcon}" alt="Twitter" style="width:28px;height:28px;vertical-align:middle;" /></a>
               </div>
-              <div style="border-top:1px solid #eee;margin:24px 0 0 0;"></div>
-              <div style="color:#bbb;font-size:14px;margin-top:12px;padding-top:8px;text-align:left;">
-                <a href="${update_profile}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:12px;">Update Preferences</a> |
-                <a href="${unsubscribe}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:12px;">Unsubscribe</a>
-              </div>
             </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:16px;justify-content:space-between;margin-top:5px;">
+            <div style="width:23%;">
+            </div>
+            <div style="width:77%;">
+              <div style="border-top:1px solid #eee;margin:10px 0 0 0;width:95%;"></div>
+              <div style="color:#bbb;font-size:14px;margin-top:7px;padding-top:8px;text-align:left;">
+                <a href="${update_profile}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:13px;">Update Preferences</a> |
+                <a href="${unsubscribe}" style="color:#bbb;text-decoration:none;margin:0 8px;font-size:13px;">Unsubscribe</a>
+              </div>
+          </div>
           </div>
         </div>
       </body>
