@@ -30,6 +30,10 @@ const LogSchema = new mongoose.Schema({
       'subscriber_added', 'subscriber_updated', 'subscriber_deleted', 'subscriber_preferences_changed', 'subscriber_unsubscribed',
       // Admin actions
       'user_role_changed', 'user_restricted', 'user_deleted', 'bulk_alerts_uploaded', 'admin_users_viewed',
+      // Automated alert generation
+      'automated_alert_generation_completed', 'manual_trigger_alert_generation',
+      'bulk_approve_automated_alerts', 'bulk_reject_automated_alerts',
+      'approve_automated_alert', 'reject_automated_alert',
       // Collaborator related
       'collaborator_invited', 'collaborator_activated', 'collaborator_restricted', 'collaborator_deleted',
       // Other

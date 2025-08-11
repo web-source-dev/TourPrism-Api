@@ -17,7 +17,9 @@ import summaryRoutes from "./routes/summaries.js";
 import brevoAnalyticsRoutes from "./routes/brevoAnalytics.js";
 import subscribersRoutes from "./routes/subscribers.js";
 import logsRoutes from "./routes/logs.js";
+import automatedAlertRoutes from "./routes/automatedAlerts.js";
 import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
+import { scheduleAutomatedAlerts } from "./utils/automatedAlertGenerator.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -147,12 +149,18 @@ app.use("/api/subscribers", subscribersRoutes);
 // Add logs routes
 app.use("/api/logs", logsRoutes);
 
+// Add automated alerts routes
+app.use("/api/automated-alerts", automatedAlertRoutes);
+
 connectDB();
 const HOST = "0.0.0.0"; // Allows external connections
 const PORT = process.env.PORT || 8000;
 
 // Schedule weekly digest emails
 scheduleWeeklyDigests();
+
+// Schedule automated alert generation
+scheduleAutomatedAlerts();
 
 // Use httpServer instead of app
 httpServer.listen(PORT, HOST, () => console.log(`Server running on port ${PORT}`));

@@ -171,6 +171,19 @@ const alertSchema = new mongoose.Schema(
     },
     linkToSource: {
       type: String,
+      validate: {
+        validator: function(v) {
+          // If provided, must be a valid URL
+          if (!v) return true; // Optional field
+          try {
+            new URL(v);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        },
+        message: 'linkToSource must be a valid URL'
+      }
     },
     numberOfFollows: {
       type: Number,
@@ -199,6 +212,57 @@ const alertSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Pre-save middleware to validate and fix location data
+alertSchema.pre('save', function(next) {
+  // Validate and fix originLocation
+  if (this.originLocation && this.originLocation.type === 'Point') {
+    if (!this.originLocation.coordinates || !Array.isArray(this.originLocation.coordinates) || this.originLocation.coordinates.length !== 2) {
+      // If coordinates are invalid, try to use originLatitude/originLongitude
+      if (this.originLatitude && this.originLongitude) {
+        this.originLocation.coordinates = [this.originLongitude, this.originLatitude];
+      } else {
+        // If no valid coordinates, remove the location field
+        this.originLocation = undefined;
+      }
+    }
+  }
+
+  // Validate and fix legacy location field
+  if (this.location && this.location.type === 'Point') {
+    if (!this.location.coordinates || !Array.isArray(this.location.coordinates) || this.location.coordinates.length !== 2) {
+      // If coordinates are invalid, try to use latitude/longitude
+      if (this.latitude && this.longitude) {
+        this.location.coordinates = [this.longitude, this.latitude];
+      } else {
+        // If no valid coordinates, remove the location field
+        this.location = undefined;
+      }
+    }
+  }
+
+  // Validate and fix impactLocations
+  if (this.impactLocations && Array.isArray(this.impactLocations)) {
+    this.impactLocations = this.impactLocations.filter(location => {
+      if (location.location && location.location.type === 'Point') {
+        if (!location.location.coordinates || !Array.isArray(location.location.coordinates) || location.location.coordinates.length !== 2) {
+          // If coordinates are invalid, try to use latitude/longitude
+          if (location.latitude && location.longitude) {
+            location.location.coordinates = [location.longitude, location.latitude];
+            return true;
+          } else {
+            // If no valid coordinates, remove this location
+            return false;
+          }
+        }
+        return true;
+      }
+      return false;
+    });
+  }
+
+  next();
+});
 
 // Create index for efficient geospatial queries on both origin and impact locations
 alertSchema.index({ originLocation: '2dsphere' });
