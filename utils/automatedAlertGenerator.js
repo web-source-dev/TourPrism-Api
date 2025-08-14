@@ -80,23 +80,42 @@ class AutomatedAlertGenerator {
     return `You are a travel disruption alert analyzer. Your job is to analyze real data from multiple sources and create accurate, timely alerts for travel professionals.
   
   REQUIREMENTS:
-  - Only include alerts for events occurring from TODAY ${new Date().toISOString().split('T')[0]} up to 7 days ahead
-  - Do NOT include past events or those more than 7 days in the future
+  - INCLUDE alerts for events occurring TODAY (${new Date().toISOString().split('T')[0]}) - this is REQUIRED
+  - Include alerts for events occurring from TODAY up to 7 days ahead
+  - Include alerts that started before today but are still active (end within current week)
+  - Also include events that start within 7 days but may end up to 2 weeks from today (for multi-day events)
+  - Do NOT include past events that have already ended
+  - ALWAYS include at least 2-3 alerts for TODAY's events
   - Analyze real-time data from trusted weather, transport, news, and event sources
   - Create alerts only for actual, verified disruptions
   - Use real dates, times, and locations directly from the source
   - Include source attribution (e.g., BBC, Met Office, Transport Authority) for transparency
   - Prioritize accuracy and relevancy over volume
   
-  ALERT CATEGORIES & TYPES:
+  ALERT CATEGORIES & TYPES (USE EXACTLY AS SHOWN):
   - Industrial Action: Strike, Work-to-Rule, Labor Dispute, Other
   - Extreme Weather: Storm, Flooding, Heatwave, Wildfire, Snow, Other
-  - Infrastructure Failures: Power Outage, IT & System Failure, Transport Service Suspension, Road/Rail/Tram Closure, Repairs or Delays, Other
+  - Infrastructure Failures: Power Outage, IT & System Failure, Transport Service Suspension, Road, Rail & Tram Closure, Repairs or Delays, Other
   - Public Safety Incidents: Protest, Crime, Terror Threats, Travel Advisory, Other
   - Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Events, Parades and Ceremonies, Other
   
+  IMPORTANT: Use EXACT type names as listed above. Common mistakes to avoid:
+  - Use "Road, Rail & Tram Closure" NOT "Road Closure" or "Transport Closure"
+  - Use "IT & System Failure" NOT "IT Failure" or "System Failure"
+  - Use "Concerts and Stadium Events" NOT "Concert" or "Stadium Event"
+  
   TARGET AUDIENCES:
   Airline, Attraction, Car Rental, Cruise Line, DMO, Event Manager, Hotel, OTA, Tour Guide, Tour Operator, Travel Agency, Travel Media, Other
+  
+  IMPACT LEVELS (USE EXACTLY AS SHOWN):
+  - Minor: Small disruptions with minimal travel impact
+  - Moderate: Noticeable disruptions affecting travel plans
+  - Severe: Major disruptions causing significant travel problems
+  
+  PRIORITY LEVELS (USE EXACTLY AS SHOWN):
+  - low: Minor importance
+  - medium: Moderate importance  
+  - high: High importance
   
   ALERT STRUCTURE:
   {
@@ -106,12 +125,12 @@ class AutomatedAlertGenerator {
         "description": "Detailed description with source attribution",
         "alertCategory": "Category from real data",
         "alertType": "Specific type from category",
-        "impact": "Minor|Moderate|Severe based on actual impact",
-        "priority": "low|medium|high based on severity",
+        "impact": "Minor|Moderate|Severe (use exactly one of these)",
+        "priority": "low|medium|high (use exactly one of these)",
         "targetAudience": ["Relevant audiences"],
         "recommendedAction": "What people should do based on real situation",
-        "expectedStart": "YYYY-MM-DDTHH:mm:ss (must be between today and next 7 days)",
-        "expectedEnd": "YYYY-MM-DDTHH:mm:ss (must be within same window)",
+        "expectedStart": "YYYY-MM-DDTHH:mm:ss (must be between today and next 7 days, include today)",
+        "expectedEnd": "YYYY-MM-DDTHH:mm:ss (can extend up to 2 weeks for multi-day events)",
         "originCity": "City name",
         "originCountry": "Country name",
         "impactLocations": [
@@ -133,7 +152,11 @@ class AutomatedAlertGenerator {
   - DO NOT include events outside the range of today through the next 7 days.
   - MUST INCLUDE proper source attribution and valid URLs for verification.
   - Every alert MUST have a valid sourceUrl field with a real, verifiable URL.
-  - Use credible sources like BBC, Met Office, local transport authorities, official event pages.`;
+  - ALL URLs MUST include the full protocol: https:// or http:// (e.g., https://www.bbc.com/news, NOT bbc.com)
+  - Use credible sources like BBC, Met Office, local transport authorities, official event pages.
+  - RESPOND WITH VALID JSON ONLY - no additional text, explanations, or markdown formatting.
+  - Ensure all JSON is properly formatted with correct quotes, commas, and brackets.
+  - All string values must be properly quoted and escaped.`;
   }
 
   async generateAlertsForCity(cityKey) {
@@ -142,32 +165,93 @@ class AutomatedAlertGenerator {
       throw new Error(`Unknown city: ${cityKey}`);
     }
 
-    const prompt = `Generate 10-15 realistic alerts for ${city.name}, UK for the NEXT 7 DAYS.
+    const prompt = `Generate 10-15 realistic alerts for ${city.name}, UK for TODAY and the NEXT 7 DAYS.
 
 City: ${city.name}
 Coordinates: ${city.latitude}, ${city.longitude}
 Current Date: ${new Date().toISOString().split('T')[0]}
 
 Requirements:
-- Generate 10-15 unique alerts for the next 7 days only
+- Generate 10-15 unique alerts for events starting TODAY and in the next 7 days
+- ALWAYS include at least 2-3 alerts for TODAY (${new Date().toISOString().split('T')[0]})
+- Include events that start within 7 days but may end up to 2 weeks from today (for multi-day events)
 - Use real upcoming events and situations in ${city.name}
 - Include all categories: Industrial Action, Extreme Weather, Infrastructure Failures, Public Safety Incidents, Festivals and Events
 - Use valid coordinates for all locations
-- All dates must be between ${new Date().toISOString().split('T')[0]} and ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+- Start dates must be between TODAY (${new Date().toISOString().split('T')[0]}) and ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+- MUST include alerts starting TODAY (${new Date().toISOString().split('T')[0]})
+- End dates can extend up to ${new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} for multi-day events
+- Include alerts that started before today but end within the current week (active alerts)
 - Make alerts specific to ${city.name} and its upcoming events
 - MANDATORY: Each alert MUST include a valid sourceUrl with real, verifiable links (BBC, Met Office, transport authorities, official event pages)
+- ALL URLs MUST include full protocol: https:// or http:// (e.g., https://www.bbc.com/news, NOT bbc.com)
 - Include proper source attribution in the "source" field
 
-Return valid JSON with 10-15 alerts in the array.`;
+Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY valid JSON - no markdown, no explanations, no additional text.`;
 
     try {
       const responseText = await this.callGemini(prompt);
       const jsonContent = this.extractJsonFromResponse(responseText);
-      const parsedResponse = JSON.parse(jsonContent);
+      
+      // Debug: Log the extracted JSON content for troubleshooting
+      console.log(`Raw JSON content for ${city.name}:`, jsonContent.substring(0, 500) + '...');
+      
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(jsonContent);
+      } catch (parseError) {
+        console.error(`JSON parsing error for ${city.name}:`, parseError.message);
+        console.error(`JSON content length: ${jsonContent.length}`);
+        console.error(`JSON content preview:`, jsonContent.substring(0, 1000));
+        
+        // Try to fix common JSON issues and retry
+        const fixedJson = this.fixCommonJsonIssues(jsonContent);
+        try {
+          parsedResponse = JSON.parse(fixedJson);
+          console.log(`Successfully parsed JSON after fixing issues for ${city.name}`);
+        } catch (retryError) {
+          console.error(`Failed to parse JSON even after fixing for ${city.name}:`, retryError.message);
+          
+                  // Try a more aggressive JSON cleanup
+        const aggressiveFix = this.aggressiveJsonFix(jsonContent);
+        try {
+          parsedResponse = JSON.parse(aggressiveFix);
+          console.log(`Successfully parsed JSON after aggressive fixing for ${city.name}`);
+        } catch (finalError) {
+          console.error(`Failed to parse JSON even after aggressive fixing for ${city.name}:`, finalError.message);
+          
+          // Try to extract just the alerts array if the main JSON is corrupted
+          const alertsMatch = jsonContent.match(/"alerts":\s*\[(.*?)\]/s);
+          if (alertsMatch) {
+            try {
+              const alertsJson = `{"alerts": [${alertsMatch[1]}]}`;
+              const fixedAlertsJson = this.fixCommonJsonIssues(alertsJson);
+              parsedResponse = JSON.parse(fixedAlertsJson);
+              console.log(`Successfully parsed JSON by extracting alerts array for ${city.name}`);
+            } catch (extractError) {
+              console.error(`Failed to extract alerts array for ${city.name}:`, extractError.message);
+              throw new Error(`JSON parsing failed for ${city.name}: ${parseError.message}`);
+            }
+          } else {
+            throw new Error(`JSON parsing failed for ${city.name}: ${parseError.message}`);
+          }
+        }
+        }
+      }
 
       if (!parsedResponse.alerts || !Array.isArray(parsedResponse.alerts)) {
-        throw new Error('Invalid response format from OpenAI');
+        throw new Error('Invalid response format from Gemini API');
       }
+
+      // Fix URLs in the parsed alerts
+      parsedResponse.alerts = parsedResponse.alerts.map(alert => {
+        if (alert.sourceUrl && !alert.sourceUrl.startsWith('http://') && !alert.sourceUrl.startsWith('https://')) {
+          console.log(`Fixing URL in parsed alert: ${alert.title}. Original: ${alert.sourceUrl}`);
+          alert.sourceUrl = `https://${alert.sourceUrl}`;
+          console.log(`Fixed URL: ${alert.sourceUrl}`);
+        }
+        return alert;
+      });
 
       // Validate the number of alerts
       if (parsedResponse.alerts.length < 10) {
@@ -237,9 +321,9 @@ Return valid JSON with 10-15 alerts in the array.`;
         { googleSearchRetrieval: {} }
       ],
       generationConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40,
+        temperature: 0.3, // Lower temperature for more consistent JSON formatting
+        topP: 0.8,
+        topK: 20,
         maxOutputTokens: 4000
       }
     };
@@ -280,7 +364,309 @@ Return valid JSON with 10-15 alerts in the array.`;
       jsonContent = jsonContent.substring(0, jsonContent.length - 3);
     }
     
-    return jsonContent.trim();
+    jsonContent = jsonContent.trim();
+    
+    // Try to find JSON object boundaries
+    const startBrace = jsonContent.indexOf('{');
+    const endBrace = jsonContent.lastIndexOf('}');
+    
+    if (startBrace !== -1 && endBrace !== -1 && endBrace > startBrace) {
+      jsonContent = jsonContent.substring(startBrace, endBrace + 1);
+    }
+    
+    // Clean up common JSON formatting issues
+    jsonContent = jsonContent
+      .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+      .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+      .replace(/,\s*,/g, ',') // Remove double commas
+      .replace(/\n\s*\n/g, '\n') // Remove extra newlines
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+    
+    return jsonContent;
+  }
+
+  fixCommonJsonIssues(jsonContent) {
+    let fixed = jsonContent;
+    
+    // Fix unescaped quotes in strings
+    fixed = fixed.replace(/"([^"]*)"([^"]*)"([^"]*)"/g, (match, p1, p2, p3) => {
+      return `"${p1}${p2.replace(/"/g, '\\"')}${p3}"`;
+    });
+    
+    // Fix missing quotes around property names
+    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    
+    // Fix single quotes to double quotes
+    fixed = fixed.replace(/'/g, '"');
+    
+    // Fix trailing commas in objects and arrays
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Fix missing commas between array elements
+    fixed = fixed.replace(/}(\s*){/g, '},$1{');
+    fixed = fixed.replace(/](\s*)\[/g, '],$1[');
+    
+    // Fix unescaped newlines in strings
+    fixed = fixed.replace(/\n/g, '\\n');
+    fixed = fixed.replace(/\r/g, '\\r');
+    fixed = fixed.replace(/\t/g, '\\t');
+    
+    // Fix URLs in sourceUrl fields - add https:// if missing
+    fixed = fixed.replace(/"sourceUrl":\s*"([^"]*?)"/g, (match, url) => {
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        return `"sourceUrl": "https://${url}"`;
+      }
+      return match;
+    });
+
+    // Fix impact values in JSON
+    fixed = fixed.replace(/"impact":\s*"([^"]*?)"/g, (match, impact) => {
+      const impactMappings = {
+        'None': 'Minor',
+        'Unknown': 'Moderate',
+        'Low': 'Minor',
+        'Medium': 'Moderate',
+        'High': 'Severe',
+        'Critical': 'Severe',
+        'Major': 'Severe'
+      };
+      if (impactMappings[impact]) {
+        return `"impact": "${impactMappings[impact]}"`;
+      }
+      return match;
+    });
+
+    // Fix missing commas between objects in arrays
+    fixed = fixed.replace(/}\s*{/g, '},{');
+    
+    // Fix missing commas between properties
+    fixed = fixed.replace(/"([^"]*)"\s*"([^"]*)"\s*:/g, '"$1","$2":');
+    
+    // Fix missing commas after array elements
+    fixed = fixed.replace(/}\s*]/g, '}]');
+    fixed = fixed.replace(/"\s*]/g, '"]');
+    
+    // Fix unclosed arrays and objects
+    let openBraces = (fixed.match(/\{/g) || []).length;
+    let closeBraces = (fixed.match(/\}/g) || []).length;
+    let openBrackets = (fixed.match(/\[/g) || []).length;
+    let closeBrackets = (fixed.match(/\]/g) || []).length;
+    
+    // Add missing closing braces
+    while (openBraces > closeBraces) {
+      fixed += '}';
+      closeBraces++;
+    }
+    
+    // Add missing closing brackets
+    while (openBrackets > closeBrackets) {
+      fixed += ']';
+      closeBrackets++;
+    }
+    
+    // Fix missing closing braces/brackets
+    let braceCount = 0;
+    let bracketCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < fixed.length; i++) {
+      const char = fixed[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '{') braceCount++;
+        if (char === '}') braceCount--;
+        if (char === '[') bracketCount++;
+        if (char === ']') bracketCount--;
+      }
+    }
+    
+    // Add missing closing braces/brackets
+    while (braceCount > 0) {
+      fixed += '}';
+      braceCount--;
+    }
+    
+    while (bracketCount > 0) {
+      fixed += ']';
+      bracketCount--;
+    }
+    
+    return fixed;
+  }
+
+  fixAlertTypeMismatches(alertData) {
+    const typeMappings = {
+      // Infrastructure Failures
+      'Road Closure': 'Road, Rail & Tram Closure',
+      'Transport Closure': 'Road, Rail & Tram Closure',
+      'Rail Closure': 'Road, Rail & Tram Closure',
+      'Tram Closure': 'Road, Rail & Tram Closure',
+      'IT Failure': 'IT & System Failure',
+      'System Failure': 'IT & System Failure',
+      'Power Failure': 'Power Outage',
+      'Electricity Outage': 'Power Outage',
+      'Transport Disruption': 'Transport Service Suspension',
+      'Service Suspension': 'Transport Service Suspension',
+      
+      // Extreme Weather
+      'Fog': 'Storm',
+      'Heavy Rain': 'Storm',
+      'Thunderstorm': 'Storm',
+      'High Winds': 'Storm',
+      'Drought': 'Heatwave',
+      'Extreme Heat': 'Heatwave',
+      
+      // Public Safety Incidents
+      'Violence': 'Crime',
+      'Theft': 'Crime',
+      'Assault': 'Crime',
+      'Security Threat': 'Terror Threats',
+      'Safety Advisory': 'Travel Advisory',
+      
+      // Festivals and Events
+      'Concert': 'Concerts and Stadium Events',
+      'Stadium Event': 'Concerts and Stadium Events',
+      'Music Festival': 'Citywide Festival',
+      'Cultural Festival': 'Citywide Festival',
+      'Parade': 'Parades and Ceremonies',
+      'Ceremony': 'Parades and Ceremonies',
+      
+      // Industrial Action
+      'Labor Strike': 'Strike',
+      'Work Stoppage': 'Strike',
+      'Union Action': 'Strike'
+    };
+
+    if (alertData.alertType && typeMappings[alertData.alertType]) {
+      console.log(`Fixing alert type for "${alertData.title}": "${alertData.alertType}" → "${typeMappings[alertData.alertType]}"`);
+      alertData.alertType = typeMappings[alertData.alertType];
+    }
+
+    return alertData;
+  }
+
+  fixInvalidImpactValues(alertData) {
+    const impactMappings = {
+      'None': 'Minor',
+      'Unknown': 'Moderate',
+      'Low': 'Minor',
+      'Medium': 'Moderate',
+      'High': 'Severe',
+      'Critical': 'Severe',
+      'Major': 'Severe',
+      'Minor': 'Minor',
+      'Moderate': 'Moderate',
+      'Severe': 'Severe'
+    };
+
+    if (alertData.impact && impactMappings[alertData.impact]) {
+      console.log(`Fixing impact value for "${alertData.title}": "${alertData.impact}" → "${impactMappings[alertData.impact]}"`);
+      alertData.impact = impactMappings[alertData.impact];
+    } else if (alertData.impact && !SEVERITY_LEVELS.includes(alertData.impact)) {
+      console.log(`Invalid impact value for "${alertData.title}": "${alertData.impact}", setting to "Moderate"`);
+      alertData.impact = 'Moderate';
+    }
+
+    return alertData;
+  }
+
+  aggressiveJsonFix(jsonContent) {
+    let fixed = jsonContent;
+    
+    // Remove any text before the first {
+    const firstBrace = fixed.indexOf('{');
+    if (firstBrace > 0) {
+      fixed = fixed.substring(firstBrace);
+    }
+    
+    // Remove any text after the last }
+    const lastBrace = fixed.lastIndexOf('}');
+    if (lastBrace !== -1 && lastBrace < fixed.length - 1) {
+      fixed = fixed.substring(0, lastBrace + 1);
+    }
+    
+    // Fix common string escaping issues
+    fixed = fixed.replace(/\\"/g, '"'); // Unescape quotes
+    fixed = fixed.replace(/"/g, '\\"'); // Re-escape quotes properly
+    fixed = fixed.replace(/\\\\/g, '\\'); // Fix double backslashes
+    
+    // Fix missing quotes around property names
+    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    
+    // Fix single quotes to double quotes
+    fixed = fixed.replace(/'/g, '"');
+    
+    // Fix trailing commas
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Fix missing commas between objects
+    fixed = fixed.replace(/}\s*{/g, '},{');
+    
+    // Fix missing commas after array elements
+    fixed = fixed.replace(/}\s*]/g, '}]');
+    fixed = fixed.replace(/"\s*]/g, '"]');
+    
+    // Fix specific array syntax issues
+    fixed = fixed.replace(/,\s*,/g, ','); // Remove double commas
+    fixed = fixed.replace(/,\s*]/g, ']'); // Remove trailing commas before closing brackets
+    fixed = fixed.replace(/,\s*}/g, '}'); // Remove trailing commas before closing braces
+    
+    // Fix unclosed strings
+    let inString = false;
+    let escapeNext = false;
+    let result = '';
+    
+    for (let i = 0; i < fixed.length; i++) {
+      const char = fixed[i];
+      
+      if (escapeNext) {
+        result += char;
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        result += char;
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+        result += char;
+        continue;
+      }
+      
+      result += char;
+    }
+    
+    // If we ended in a string, close it
+    if (inString) {
+      result += '"';
+    }
+    
+    // Final cleanup - ensure proper array structure
+    result = result.replace(/}\s*]\s*}/g, '}]}'); // Fix nested array closing
+    result = result.replace(/]\s*}\s*}/g, ']}}'); // Fix nested object closing
+    
+    return result;
   }
 
   async checkForDuplicates(alert) {
@@ -346,10 +732,23 @@ Return valid JSON with 10-15 alerts in the array.`;
       return false;
     }
 
+    // Fix common alert type mismatches
+    alertData = this.fixAlertTypeMismatches(alertData);
+    
+    // Fix invalid impact values
+    alertData = this.fixInvalidImpactValues(alertData);
+
     // Validate source URL is provided and is a valid URL
     if (!alertData.sourceUrl) {
       console.warn(`Missing sourceUrl for alert: ${alertData.title}`);
       return false;
+    }
+
+    // Fix URLs that are missing protocols
+    if (alertData.sourceUrl && !alertData.sourceUrl.startsWith('http://') && !alertData.sourceUrl.startsWith('https://')) {
+      console.log(`Fixing URL for alert: ${alertData.title}. Original: ${alertData.sourceUrl}`);
+      alertData.sourceUrl = `https://${alertData.sourceUrl}`;
+      console.log(`Fixed URL: ${alertData.sourceUrl}`);
     }
 
     try {
@@ -359,22 +758,59 @@ Return valid JSON with 10-15 alerts in the array.`;
       return false;
     }
 
-    // Validate dates are in the future and within 7 days
+    // Validate dates - allow alerts that are active during the current week
+    // This includes:
+    // 1. Alerts that start today or in the next 7 days
+    // 2. Alerts that started before today but end within the current week
+    // 3. Alerts that span across weeks (end date can be up to 2 weeks from now)
     const now = new Date();
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
+    const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksFromNow = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-    if (alertData.expectedStart) {
+    if (alertData.expectedStart && alertData.expectedEnd) {
       const startDate = new Date(alertData.expectedStart);
-      if (startDate < now || startDate > sevenDaysFromNow) {
-        console.warn(`Invalid start date for alert: ${alertData.title}. Date: ${startDate}, must be between ${now} and ${sevenDaysFromNow}`);
+      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const endDate = new Date(alertData.expectedEnd);
+      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+      
+      // Check if the alert is active during the current week
+      const alertStartsInCurrentWeek = startDateOnly >= today && startDateOnly <= sevenDaysFromNow;
+      const alertEndsInCurrentWeek = endDateOnly >= today && endDateOnly <= sevenDaysFromNow;
+      const alertSpansCurrentWeek = startDateOnly < today && endDateOnly >= today;
+      const alertSpansFutureWeeks = startDateOnly >= today && endDateOnly <= twoWeeksFromNow;
+      
+      if (!alertStartsInCurrentWeek && !alertEndsInCurrentWeek && !alertSpansCurrentWeek && !alertSpansFutureWeeks) {
+        console.warn(`Alert not active during current week: ${alertData.title}. Start: ${startDateOnly}, End: ${endDateOnly}, Today: ${today}, Week end: ${sevenDaysFromNow}`);
         return false;
       }
-    }
-
-    if (alertData.expectedEnd) {
+      
+      // Log which condition was met
+      if (alertStartsInCurrentWeek) {
+        console.log(`Alert starts in current week: ${alertData.title} (${startDateOnly})`);
+      } else if (alertEndsInCurrentWeek) {
+        console.log(`Alert ends in current week: ${alertData.title} (${endDateOnly})`);
+      } else if (alertSpansCurrentWeek) {
+        console.log(`Alert spans current week: ${alertData.title} (${startDateOnly} to ${endDateOnly})`);
+      } else if (alertSpansFutureWeeks) {
+        console.log(`Alert spans future weeks: ${alertData.title} (${startDateOnly} to ${endDateOnly})`);
+      }
+    } else if (alertData.expectedStart) {
+      // If only start date is provided, it must be in the current week
+      const startDate = new Date(alertData.expectedStart);
+      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      
+      if (startDateOnly < today || startDateOnly > sevenDaysFromNow) {
+        console.warn(`Invalid start date for alert: ${alertData.title}. Date: ${startDateOnly}, must be between ${today} and ${sevenDaysFromNow}`);
+        return false;
+      }
+    } else if (alertData.expectedEnd) {
+      // If only end date is provided, it must be in the current week
       const endDate = new Date(alertData.expectedEnd);
-      if (endDate < now || endDate > sevenDaysFromNow) {
-        console.warn(`Invalid end date for alert: ${alertData.title}. Date: ${endDate}, must be between ${now} and ${sevenDaysFromNow}`);
+      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+      
+      if (endDateOnly < today || endDateOnly > sevenDaysFromNow) {
+        console.warn(`Invalid end date for alert: ${alertData.title}. Date: ${endDateOnly}, must be between ${today} and ${sevenDaysFromNow}`);
         return false;
       }
     }
@@ -388,6 +824,27 @@ Return valid JSON with 10-15 alerts in the array.`;
     if (alertData.alertType && !ALERT_CATEGORIES[alertData.alertCategory].includes(alertData.alertType)) {
       console.warn(`Invalid alert type: ${alertData.alertType} for category: ${alertData.alertCategory}`);
       return false;
+    }
+
+    // Validate target audiences
+    if (alertData.targetAudience && Array.isArray(alertData.targetAudience)) {
+      const invalidAudiences = alertData.targetAudience.filter(audience => !TARGET_AUDIENCES.includes(audience));
+      if (invalidAudiences.length > 0) {
+        console.warn(`Invalid target audiences for alert "${alertData.title}": ${invalidAudiences.join(', ')}`);
+        // Remove invalid audiences
+        alertData.targetAudience = alertData.targetAudience.filter(audience => TARGET_AUDIENCES.includes(audience));
+        console.log(`Fixed target audiences for "${alertData.title}": ${alertData.targetAudience.join(', ')}`);
+      }
+    }
+
+
+
+    // Validate priority level
+    if (alertData.priority && !PRIORITY_LEVELS.includes(alertData.priority)) {
+      console.warn(`Invalid priority level for alert "${alertData.title}": ${alertData.priority}`);
+      // Set default priority
+      alertData.priority = 'medium';
+      console.log(`Fixed priority level for "${alertData.title}": ${alertData.priority}`);
     }
 
     // Validate impactLocations
