@@ -420,6 +420,43 @@ router.get("/", optionalAuth, async (req, res) => {
       isFollowing: req.userId ? alert.followedBy?.some(user => user._id.toString() === req.userId) : false,
     }));
 
+    // Add one view count for this feed request (in background, don't wait for it)
+    if (alerts.length > 0) {
+      // Get client IP address
+      const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+      
+      // Create a simple cache key based on IP and current hour to prevent multiple views per hour
+      const currentHour = new Date().getHours();
+      const cacheKey = `view_${clientIP}_${currentHour}`;
+      
+      // Check if we've already recorded a view for this IP in this hour
+      // Using a simple in-memory check (you could use Redis or similar for production)
+      if (!req.app.locals.viewCache) {
+        req.app.locals.viewCache = new Set();
+      }
+      
+      if (!req.app.locals.viewCache.has(cacheKey)) {
+        // Add to cache to prevent duplicate views
+        req.app.locals.viewCache.add(cacheKey);
+        
+        // Clean up old cache entries (older than 1 hour)
+        setTimeout(() => {
+          req.app.locals.viewCache.delete(cacheKey);
+        }, 60 * 60 * 1000); // 1 hour
+        
+        // Increment view count for all alerts in this request
+        const alertIds = alerts.map(alert => alert._id);
+        
+        Alert.updateMany(
+          { _id: { $in: alertIds } },
+          { $inc: { viewCount: 1 } }
+        ).exec().catch(error => {
+          console.error('Error updating view counts:', error);
+          // Don't fail the request if view count update fails
+        });
+      }
+    }
+
     res.json({
       alerts: transformedAlerts,
       totalCount: total,

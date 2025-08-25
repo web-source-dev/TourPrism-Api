@@ -57,7 +57,7 @@ export const optionalAuth = async (req, res, next) => {
     }
   }
   next();
-};
+}; 
 
 /**
  * Middleware to restrict access based on user role

@@ -18,8 +18,13 @@ import brevoAnalyticsRoutes from "./routes/brevoAnalytics.js";
 import subscribersRoutes from "./routes/subscribers.js";
 import logsRoutes from "./routes/logs.js";
 import automatedAlertRoutes from "./routes/automatedAlerts.js";
+import autoUpdateRoutes from "./routes/autoUpdates.js";
+import timeTrackingRoutes from "./routes/timetracking.js";
+import alertMetricsRoutes from "./routes/alertMetrics.js";
 import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
 import { scheduleAutomatedAlerts } from "./utils/automatedAlertGenerator.js";
+import { scheduleAutoUpdates } from "./utils/autoUpdateSystem.js";
+import { scheduleAlertArchiving, setSocketIO } from "./utils/alertArchiver.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -99,6 +104,9 @@ const io = new Server(httpServer, {
   }
 });
 
+// Set socket.io instance for alert archiver
+setSocketIO(io);
+
 // Socket.io connection handler
 io.on("connection", (socket) => {
   console.log("New client connected");
@@ -152,6 +160,15 @@ app.use("/api/logs", logsRoutes);
 // Add automated alerts routes
 app.use("/api/automated-alerts", automatedAlertRoutes);
 
+// Add auto-update routes
+app.use("/api/auto-updates", autoUpdateRoutes);
+
+// Add time tracking routes
+app.use("/api/time-tracking", timeTrackingRoutes);
+
+// Add alert metrics routes
+app.use("/api/alert-metrics", alertMetricsRoutes);
+
 connectDB();
 const HOST = "0.0.0.0"; // Allows external connections
 const PORT = process.env.PORT || 8000;
@@ -161,6 +178,12 @@ scheduleWeeklyDigests();
 
 // Schedule automated alert generation
 scheduleAutomatedAlerts();
+
+// Schedule auto-update system
+scheduleAutoUpdates();
+
+// Schedule alert archiving
+scheduleAlertArchiving();
 
 // Use httpServer instead of app
 httpServer.listen(PORT, HOST, () => console.log(`Server running on port ${PORT}`));

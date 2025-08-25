@@ -189,6 +189,10 @@ const alertSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    viewCount: {
+      type: Number,
+      default: 0
+    },
     addToEmailSummary: {
       type: Boolean,
       default: false
@@ -209,6 +213,55 @@ const alertSchema = new mongoose.Schema(
         ref: "User"
       }
     ],
+    // Auto-update system fields
+    isUpdateOf: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Alert",
+      default: null
+    },
+    updateHistory: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Alert"
+    }],
+    lastAutoUpdateCheck: {
+      type: Date,
+      default: null
+    },
+    autoUpdateEnabled: {
+      type: Boolean,
+      default: true
+    },
+    autoUpdateSuppressed: {
+      type: Boolean,
+      default: false
+    },
+    autoUpdateSuppressedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    autoUpdateSuppressedAt: {
+      type: Date
+    },
+    autoUpdateSuppressedReason: {
+      type: String
+    },
+    // Update metadata
+    updateCount: {
+      type: Number,
+      default: 0
+    },
+    lastUpdateAt: {
+      type: Date
+    },
+    lastUpdateBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    updateSource: {
+      type: String,
+      enum: ["manual", "auto", "admin"],
+      default: "manual"
+    }
   },
   { timestamps: true }
 );

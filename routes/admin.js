@@ -1231,4 +1231,115 @@ router.get("/forecast-summaries/:summaryId", authenticateRole(['admin', 'manager
   }
 });
 
+// Auto-update management endpoints
+
+// Get alerts with auto-update information
+router.get("/alerts-with-updates", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      hasUpdates = 'all',
+      autoUpdateStatus = 'all'
+    } = req.query;
+    
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+    
+    // Build query
+    const query = { status: 'approved' };
+    
+    // Filter by update history
+    if (hasUpdates === 'true') {
+      query.updateCount = { $gt: 0 };
+    } else if (hasUpdates === 'false') {
+      query.updateCount = { $in: [0, null, undefined] };
+    }
+    
+    // Filter by auto-update status
+    if (autoUpdateStatus === 'suppressed') {
+      query.autoUpdateSuppressed = true;
+    } else if (autoUpdateStatus === 'enabled') {
+      query.autoUpdateSuppressed = false;
+    }
+    
+    // Execute query with pagination
+    const alerts = await Alert.find(query)
+      .populate('userId', 'email firstName lastName')
+      .populate('lastUpdateBy', 'email firstName lastName')
+      .populate('autoUpdateSuppressedBy', 'email firstName lastName')
+      .sort({ lastUpdateAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber);
+    
+    // Get total count for pagination
+    const totalCount = await Alert.countDocuments(query);
+    
+    // Get update history for each alert
+    const alertsWithUpdates = await Promise.all(alerts.map(async (alert) => {
+      const updateHistory = await Alert.find({ isUpdateOf: alert._id })
+        .select('_id title status createdAt updateSource')
+        .sort({ createdAt: -1 });
+      
+      return {
+        ...alert.toObject(),
+        updateHistory
+      };
+    }));
+    
+    res.json({ 
+      alerts: alertsWithUpdates, 
+      totalCount,
+      pagination: {
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(totalCount / limitNumber)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching alerts with updates:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get update history for an alert
+router.get("/alerts/:alertId/update-history", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    
+    // Get the original alert
+    const originalAlert = await Alert.findById(alertId)
+      .populate('userId', 'email firstName lastName')
+      .populate('lastUpdateBy', 'email firstName lastName');
+    
+    if (!originalAlert) {
+      return res.status(404).json({ message: "Alert not found" });
+    }
+    
+    // Get all updates for this alert
+    const updates = await Alert.find({ isUpdateOf: alertId })
+      .populate('userId', 'email firstName lastName')
+      .sort({ createdAt: -1 });
+    
+    // Get parent alert if this is an update
+    let parentAlert = null;
+    if (originalAlert.isUpdateOf) {
+      parentAlert = await Alert.findById(originalAlert.isUpdateOf)
+        .populate('userId', 'email firstName lastName')
+        .select('_id title description createdAt');
+    }
+    
+    res.json({
+      originalAlert,
+      updates,
+      parentAlert,
+      updateCount: updates.length
+    });
+  } catch (error) {
+    console.error('Error fetching alert update history:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 export default router; 
