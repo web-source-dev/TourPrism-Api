@@ -26,7 +26,7 @@ const actionLogSchema = new mongoose.Schema({
 const guestSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: true
+    required: true 
   },
   name: {
     type: String
