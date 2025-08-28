@@ -10,3 +10,12 @@ env file
 *.env.*
 config.js
 credentials.js
+
+node_modules
+
+
+
+
+
+
+
