@@ -16,7 +16,7 @@ const router = express.Router();
 
 // Configure Google Strategy
 passport.use(
-  new GoogleStrategy(
+  new GoogleStrategy( 
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
