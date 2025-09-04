@@ -39,27 +39,6 @@ router.get('/', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Log profile view
-    try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'profile_viewed',
-        details: {
-          isCollaborator: !!req.isCollaborator,
-          collaboratorRole: req.collaboratorRole || null
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging profile view:', error);
-      // Continue execution even if logging fails
-    }
-    
     res.json(user);
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -470,26 +449,6 @@ router.get('/collaborators', authenticate, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Log collaborators view
-    try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'collaborators_viewed',
-        details: {
-          count: user.collaborators?.length || 0
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging collaborators view:', error);
-      // Continue execution even if logging fails
     }
     
     // Return collaborators with limited fields

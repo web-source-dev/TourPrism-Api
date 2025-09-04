@@ -898,11 +898,25 @@ router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'edit
     }
     
     if (sector && sector !== 'all') {
-      query.sector = sector;
+      // Handle both single string and array formats for sector filtering
+      if (sector.includes(',')) {
+        // Multiple sectors - match any of them
+        query.sector = { $in: sector.split(',') };
+      } else {
+        // Single sector - match exact or if it's in an array
+        query.$or = [
+          { sector: sector },
+          { sector: { $in: [sector] } }
+        ];
+      }
     }
     
     if (location && location !== 'all') {
-      query['location.name'] = location;
+      // Handle both single string and array formats for location filtering
+      query.$or = [
+        { 'location.name': location },
+        { 'location': { $elemMatch: { name: location } } }
+      ];
     }
     
     if (isActive !== undefined && isActive !== 'all') {
@@ -955,7 +969,7 @@ router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), asy
     const newSubscriber = new Subscriber({
       name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName || user.email.split('@')[0],
       email: user.email,
-      sector: sector || 'Tourism',
+      sector: sector ? (Array.isArray(sector) ? sector : [sector]) : ['Tourism'],
       location: location || user.company?.MainOperatingRegions || [],
       createdAt: new Date(),
       isActive: true
@@ -980,7 +994,7 @@ router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), asy
         details: {
           targetUserId: userId,
           targetUserEmail: user.email,
-          sector: sector || 'Tourism',
+          sector: Array.isArray(sector) ? sector.join(', ') : (sector || 'Tourism'),
           adminRole: adminUser?.role || 'admin'
         },
         ipAddress: req.ip,

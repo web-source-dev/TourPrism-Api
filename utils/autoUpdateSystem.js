@@ -1,10 +1,7 @@
 import dotenv from 'dotenv';
 import cron from 'node-cron';
-import mongoose from 'mongoose';
-import connectDB from '../config/db.js';
 import Alert from '../models/Alert.js';
 import Logs from '../models/Logs.js';
-import User from '../models/User.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 dotenv.config();
@@ -173,7 +170,7 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       // Log the update
       await Logs.createLog({
         userId: adminUserId || originalAlert.userId,
-        userEmail: adminUserId ? 'system@tourprism.com' : 'auto-update@tourprism.com',
+        userEmail: adminUserId ? 'system@tourprism.com' : 'tourprism.alerts@gmail.com',
         userName: adminUserId ? 'Admin System' : 'Auto-Update System',
         action: 'alert_auto_update_created',
         details: {
@@ -204,6 +201,7 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
     }
 
     this.isRunning = true;
+    const processStartTime = new Date();
     console.log('Starting auto-update process...');
 
     try {
@@ -213,6 +211,8 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       let updatesCreated = 0;
       let noUpdates = 0;
       let errors = 0;
+      const updateDetails = [];
+      const errorDetails = [];
 
       for (const alert of alertsToCheck) {
         try {
@@ -227,8 +227,15 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
           
           if (updateCheck.needsUpdate && updateCheck.confidence > 0.7) {
             // Create update alert
-            await this.createUpdateAlert(alert, updateCheck);
+            const updateAlert = await this.createUpdateAlert(alert, updateCheck);
             updatesCreated++;
+            updateDetails.push({
+              alertId: alert._id,
+              alertTitle: alert.title,
+              updateAlertId: updateAlert._id,
+              reason: updateCheck.reason,
+              confidence: updateCheck.confidence
+            });
             console.log(`Created update for alert ${alert._id}`);
           } else {
             noUpdates++;
@@ -240,23 +247,38 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
 
         } catch (error) {
           errors++;
+          errorDetails.push({
+            alertId: alert._id,
+            error: error.message
+          });
           console.error(`Error processing alert ${alert._id}:`, error);
         }
       }
+
+      const processEndTime = new Date();
+      const processDuration = processEndTime - processStartTime;
 
       console.log(`Auto-update process completed: ${updatesCreated} updates created, ${noUpdates} no updates, ${errors} errors`);
 
       // Log summary
       await Logs.createLog({
         userId: null,
-        userEmail: 'auto-update@tourprism.com',
+        userEmail: 'tourprism.alerts@gmail.com',
         userName: 'Auto-Update System',
         action: 'auto_update_process_completed',
         details: {
           alertsChecked: alertsToCheck.length,
           updatesCreated,
           noUpdates,
-          errors
+          errors,
+          processStartTime: processStartTime.toISOString(),
+          processEndTime: processEndTime.toISOString(),
+          processDurationMs: processDuration,
+          processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+          successRate: alertsToCheck.length > 0 ? ((alertsToCheck.length - errors) / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
+          updateRate: alertsToCheck.length > 0 ? (updatesCreated / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
+          updateDetails,
+          errorDetails
         },
         ipAddress: '127.0.0.1',
         userAgent: 'Auto-Update System'
@@ -264,6 +286,22 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
 
     } catch (error) {
       console.error('Error in auto-update process:', error);
+      
+      // Log process error
+      await Logs.createLog({
+        userId: null,
+        userEmail: 'tourprism.alerts@gmail.com',
+        userName: 'Auto-Update System',
+        action: 'auto_update_process_completed',
+        details: {
+          error: error.message,
+          processStartTime: processStartTime.toISOString(),
+          processEndTime: new Date().toISOString(),
+          failed: true
+        },
+        ipAddress: '127.0.0.1',
+        userAgent: 'Auto-Update System'
+      });
     } finally {
       this.isRunning = false;
     }
@@ -322,7 +360,7 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       // Log the suppression
       await Logs.createLog({
         userId: adminUserId,
-        userEmail: 'admin@tourprism.com',
+        userEmail: 'tourprism.alerts@gmail.com',
         userName: 'Admin',
         action: 'alert_auto_update_suppressed',
         details: {
@@ -360,7 +398,7 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       // Log the re-enabling
       await Logs.createLog({
         userId: adminUserId,
-        userEmail: 'admin@tourprism.com',
+        userEmail: 'tourprism.alerts@gmail.com',
         userName: 'Admin',
         action: 'alert_auto_update_enabled',
         details: {
@@ -387,6 +425,7 @@ const autoUpdateSystem = new AutoUpdateSystem();
 const scheduleAutoUpdates = () => {
   // Run every 2 days at 2 AM
   cron.schedule('0 2 */2 * *', async () => {
+  // cron.schedule('*/1 * * * *', async () => {
     console.log('Running scheduled auto-update check...');
     await autoUpdateSystem.processAutoUpdates();
   }, {

@@ -437,23 +437,6 @@ router.get("/saved", authenticate, async (req, res) => {
   try {
     const userId = req.userId;
     
-    // Log access to saved summaries
-    try {
-      const user = await User.findById(userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'saved_summaries_viewed',
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging saved summaries view:', error);
-      // Continue execution even if logging fails
-    }
-    
     const summaries = await Summary.find({ userId })
       .sort({ createdAt: -1 })
       .lean();
@@ -488,28 +471,6 @@ router.get("/:id", authenticate, async (req, res) => {
         success: false,
         message: "Summary not found"
       });
-    }
-    
-    // Log summary view
-    try {
-      const user = await User.findById(userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'summary_viewed',
-        details: {
-          summaryId,
-          title: summary.title,
-          alertCount: summary.includedAlerts?.length || 0
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging summary view:', error);
-      // Continue execution even if logging fails
     }
     
     res.json({
@@ -706,8 +667,8 @@ router.get("/forecasts/upcoming", authenticate, async (req, res) => {
           return new Date(a.expectedStart) - new Date(b.expectedStart);
         }
         
-        // Then by impact severity (Severe > Moderate > Minor)
-        const impactOrder = { "Severe": 0, "Moderate": 1, "Minor": 2 };
+        // Then by impact severity (High > Moderate > Low)
+        const impactOrder = { "High": 0, "Moderate": 1, "Low": 2 };
         return (impactOrder[a.impact] || 3) - (impactOrder[b.impact] || 3);
       });
       
@@ -766,7 +727,7 @@ router.get("/forecasts/upcoming", authenticate, async (req, res) => {
               <p>This could mean:</p>
               <ul>
                 <li>No significant disruptions are expected</li>
-                <li>Any minor issues don't meet your alert criteria</li>
+                <li>Any low issues don't meet your alert criteria</li>
                 <li>New alerts may be added as they are reported</li>
               </ul>
             </div>

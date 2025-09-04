@@ -1,4 +1,5 @@
 import Alert from '../models/Alert.js';
+import Logs from '../models/Logs.js';
 
 // Socket.io instance will be set externally to avoid circular imports
 let ioInstance = null;
@@ -14,8 +15,11 @@ export const setSocketIO = (io) => {
 export const archiveExpiredAlerts = async () => {
   const result = {
     archived: 0,
-    errors: []
+    errors: [],
+    archivedAlerts: []
   };
+
+  const processStartTime = new Date();
 
   try {
     const now = new Date();
@@ -35,7 +39,7 @@ export const archiveExpiredAlerts = async () => {
     for (const alert of expiredAlerts) {
       try {
         // Update the alert status to archived
-        await Alert.findByIdAndUpdate(
+        const updatedAlert = await Alert.findByIdAndUpdate(
           alert._id,
           {
             status: 'archived',
@@ -46,6 +50,15 @@ export const archiveExpiredAlerts = async () => {
         );
 
         result.archived++;
+        result.archivedAlerts.push({
+          alertId: alert._id,
+          title: alert.title,
+          expectedEnd: alert.expectedEnd,
+          archivedAt: new Date(),
+          category: alert.alertCategory,
+          type: alert.alertType,
+          city: alert.originCity || alert.city
+        });
         
         // Emit socket event to notify connected clients
         if (ioInstance) {
@@ -66,9 +79,34 @@ export const archiveExpiredAlerts = async () => {
       }
     }
 
+    const processEndTime = new Date();
+    const processDuration = processEndTime - processStartTime;
+
     if (result.archived > 0) {
       console.log(`Successfully archived ${result.archived} alerts with expired end dates`);
     }
+
+    // Log the archiving process
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Alert Archiver System',
+      action: 'alert_archiving_completed',
+      details: {
+        totalAlertsFound: expiredAlerts.length,
+        alertsArchived: result.archived,
+        errors: result.errors.length,
+        processStartTime: processStartTime.toISOString(),
+        processEndTime: processEndTime.toISOString(),
+        processDurationMs: processDuration,
+        processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+        successRate: expiredAlerts.length > 0 ? ((expiredAlerts.length - result.errors.length) / expiredAlerts.length * 100).toFixed(2) + '%' : '0%',
+        archivedAlerts: result.archivedAlerts,
+        errorDetails: result.errors
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Alert Archiver System'
+    });
 
     return result;
   } catch (error) {
@@ -77,6 +115,23 @@ export const archiveExpiredAlerts = async () => {
       alertId: null,
       error: error.message
     });
+    
+    // Log the error
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Alert Archiver System',
+      action: 'alert_archiving_completed',
+      details: {
+        error: error.message,
+        processStartTime: processStartTime.toISOString(),
+        processEndTime: new Date().toISOString(),
+        failed: true
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Alert Archiver System'
+    });
+    
     return result;
   }
 };

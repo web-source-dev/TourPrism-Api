@@ -156,7 +156,7 @@ const alertSchema = new mongoose.Schema(
     // Changed from string to enum
     impact: {
       type: String,
-      enum: ["Minor", "Moderate", "Severe"]
+      enum: ["Low", "Moderate", "High"]
     },
     priority: {
       type: String,

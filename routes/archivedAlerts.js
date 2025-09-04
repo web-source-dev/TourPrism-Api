@@ -1,7 +1,6 @@
 import express from "express";
 import Alert from "../models/Alert.js";
 import User from "../models/User.js";
-import Logs from "../models/Logs.js";
 import { authenticateRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -199,29 +198,6 @@ router.get("/:id", authenticateRole(['admin', 'manager', 'viewer', 'editor']), a
     const currentDate = new Date();
     if (!alert.expectedEnd || alert.expectedEnd >= currentDate) {
       return res.status(400).json({ message: "This alert is not archived" });
-    }
-
-    // Log archived alert view if user is authenticated 
-    if (req.userId) {
-      try {
-        const user = req.userId ? await User.findById(req.userId).select('firstName lastName email') : null;
-        
-        await Logs.createLog({
-          userId: req.userId,
-          userEmail: req.userEmail || user?.email,
-          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-          action: 'archived_alert_viewed',
-          details: {
-            alertId,
-            alertTitle: alert.title
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
-        });
-      } catch (error) {
-        console.error('Error logging archived alert view:', error);
-        // Continue execution even if logging fails
-      }
     }
 
     res.json(alert);

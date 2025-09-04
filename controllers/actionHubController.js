@@ -568,14 +568,6 @@ export const setActiveTab = async (req, res) => {
     // Update active tab
     actionHubItem.currentActiveTab = tab;
     
-    // Add log entry
-    actionHubItem.actionLogs.push({
-      user: userId,
-      userEmail: userEmail, // Include user email for collaborator identification
-      actionType: 'edit',
-      actionDetails: `Changed active tab to ${tab}`
-    });
-    
     await actionHubItem.save();
 
     return res.status(200).json({ 

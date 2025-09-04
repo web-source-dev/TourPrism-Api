@@ -8,6 +8,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node utils/seedDashboardData.js",
+    "migrate:sector": "node scripts/migrateSectorToArray.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

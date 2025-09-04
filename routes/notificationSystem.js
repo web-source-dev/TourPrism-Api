@@ -9,23 +9,6 @@ const router = express.Router();
 // Get all notifications for the authenticated user
 router.get("/", authenticate, async (req, res) => {
   try {
-    // Log access to notifications
-    try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'notifications_viewed',
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging notifications view:', error);
-      // Continue execution even if logging fails
-    }
-    
     const notifications = await Notification.find({ userId: req.userId })
       .sort({ createdAt: -1 });
     res.json(notifications);
@@ -47,28 +30,6 @@ router.patch("/:id/read", authenticate, async (req, res) => {
     
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });
-    }
-    
-    // Log notification read
-    try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'notification_read',
-        details: {
-          notificationId,
-          notificationType: notification.notificationType || 'general',
-          title: notification.title
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (error) {
-      console.error('Error logging notification read:', error);
-      // Continue execution even if logging fails
     }
     
     res.json(notification);

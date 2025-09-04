@@ -36,6 +36,10 @@ const LogSchema = new mongoose.Schema({
       'approve_automated_alert', 'reject_automated_alert',
       // Collaborator related
       'collaborator_invited', 'collaborator_activated', 'collaborator_restricted', 'collaborator_deleted',
+      // Email and system operations
+      'email_sent', 'weekly_email_sent', 'weekly_email_process_completed',
+      'auto_update_process_completed', 'alert_auto_update_created', 'alert_auto_update_suppressed', 'alert_auto_update_enabled',
+      'alert_archived', 'alert_archiving_completed',
       // Other
       'profile_updated', 'summary_viewed', 'summary_generated', 'profile_viewed','notifications_viewed'
     ]

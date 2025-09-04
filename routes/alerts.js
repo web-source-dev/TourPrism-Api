@@ -227,7 +227,7 @@ router.get("/", optionalAuth, async (req, res) => {
       const impactLevels = Array.isArray(impact) ? impact : [impact];
       // Ensure only valid impact levels are used
       const validImpactLevels = impactLevels.filter(level => 
-        ['Minor', 'Moderate', 'Severe'].includes(level)
+        ['Low', 'Moderate', 'High'].includes(level)
       );
       if (validImpactLevels.length > 0) {
         query.impact = { $in: validImpactLevels };
@@ -365,7 +365,7 @@ router.get("/", optionalAuth, async (req, res) => {
         sortOptions = { createdAt: -1 };
         break;
       case 'highest_impact':
-        // First sort by impact (Severe > Moderate > Minor)
+        // First sort by impact (High > Moderate > Low)
         sortOptions = { 
           impact: -1,
           createdAt: -1 // Secondary sort by creation date

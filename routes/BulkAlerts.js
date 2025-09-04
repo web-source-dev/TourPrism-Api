@@ -143,11 +143,11 @@ const validateAlertData = (data) => {
     if (!validRiskLevels.includes(data.risk)) errors.push('Invalid risk level');
   }
   
-  // Validate impact if provided - ONLY "Minor", "Moderate", "Severe" are allowed
+  // Validate impact if provided - ONLY "Low", "Moderate", "High" are allowed
   if (data.impact) {
-    const validImpactLevels = ['Minor', 'Moderate', 'Severe'];
+    const validImpactLevels = ['Low', 'Moderate', 'High'];
     if (!validImpactLevels.includes(data.impact)) {
-      errors.push(`Invalid impact value: "${data.impact}". Only "Minor", "Moderate", or "Severe" are allowed.`);
+      errors.push(`Invalid impact value: "${data.impact}". Only "Low", "Moderate", or "High" are allowed.`);
     }
   }
   
@@ -233,7 +233,7 @@ router.post('/upload', authenticateRole(['admin', 'manager']), upload.single('fi
               title: row.title || row.header, // Support both title and header
               description: row.description,
               risk: row.risk || 'Medium',
-              impact: row.impact || 'Minor', // Default to 'Minor' if not provided
+              impact: row.impact || 'Low', // Default to 'Low' if not provided
               priority: row.priority || 'Medium',
               targetAudience: row.targetAudience ? row.targetAudience.split(',').map(item => item.trim()) : ['Tourists'],
               recommendedAction: row.recommendedAction || row.action || '', // Support both field names
@@ -489,7 +489,7 @@ router.get('/template', (req, res) => {
       title: 'Leith Dock Road Congestion',
       description: 'Heavy goods vehicles causing delays on Leith Dock Road approaching the port area. Expect significant slowdowns during peak hours.',
       risk: 'Medium',
-      impact: 'Minor',
+      impact: 'Low',
       priority: 'Medium',
       targetAudience: 'Commuters,Tourists',
       recommendedAction: 'Allow extra journey time or use alternative routes via Seafield Road',
@@ -580,7 +580,7 @@ router.get('/template', (req, res) => {
       title: 'Bus Driver Strike - Lothian Buses',
       description: 'Lothian Bus drivers on strike affecting 70% of city routes. Limited service operating on main routes only.',
       risk: 'High',
-      impact: 'Severe',
+      impact: 'High',
       priority: 'High',
       targetAudience: 'Everyone',
       recommendedAction: 'Consider alternative transport or work from home if possible',
@@ -653,7 +653,7 @@ router.get('/template', (req, res) => {
       title: 'Storm Eleanor - Edinburgh & Lothians',
       description: 'Storm Eleanor bringing gale force winds of up to 80mph and heavy rain to Edinburgh and surrounding areas. Risk of flooding in low-lying areas.',
       risk: 'High',
-      impact: 'Severe',
+      impact: 'High',
       priority: 'High',
       targetAudience: 'Everyone',
       recommendedAction: 'Avoid unnecessary travel. Secure loose objects around properties.',
@@ -704,7 +704,7 @@ router.get('/template', (req, res) => {
       title: 'Flooding Alert - Water of Leith',
       description: 'Water of Leith has breached banks at several locations following heavy rainfall. Areas of Stockbridge, Dean Village and Leith at risk of flooding.',
       risk: 'High',
-      impact: 'Severe',
+      impact: 'High',
       priority: 'High',
       targetAudience: 'Residents,Tourists',
       recommendedAction: 'Avoid walking paths near the Water of Leith. Residents in affected areas should prepare flood defenses.',
@@ -911,7 +911,7 @@ router.get('/template', (req, res) => {
       title: 'Climate Protest - Scottish Parliament',
       description: 'Large-scale climate protest planned outside Scottish Parliament. Possible disruption to transport and access in the Holyrood area.',
       risk: 'Low',
-      impact: 'Minor',
+      impact: 'Low',
       priority: 'Low',
       targetAudience: 'Everyone',
       recommendedAction: 'Avoid Holyrood area if possible or allow extra time for journeys.',
@@ -950,7 +950,7 @@ router.get('/template', (req, res) => {
       title: 'Workers Rights March - City Center',
       description: 'Trade union organized march through central Edinburgh affecting Princes Street, North Bridge and Royal Mile.',
       risk: 'Low',
-      impact: 'Minor',
+      impact: 'Low',
       priority: 'Low',
       targetAudience: 'Everyone',
       recommendedAction: 'Expect road closures 12pm-3pm. Bus routes diverted during this time.',
@@ -1090,7 +1090,7 @@ router.get('/template', (req, res) => {
       title: 'Royal Highland Show - Traffic Management',
       description: 'Heavy traffic expected around Ingliston and Edinburgh Airport due to Royal Highland Show. Special traffic management in operation.',
       risk: 'Low',
-      impact: 'Minor',
+      impact: 'Low',
       priority: 'Low',
       targetAudience: 'Everyone',
       recommendedAction: 'Use dedicated shuttle buses from city center or park and ride facilities.',
@@ -1129,7 +1129,7 @@ router.get('/template', (req, res) => {
       title: 'Military Tattoo - Castle Esplanade Closures',
       description: 'Edinburgh Castle Esplanade and surrounding areas closed to non-ticket holders during Edinburgh Military Tattoo performances.',
       risk: 'Low',
-      impact: 'Minor',
+        impact: 'Low',
       priority: 'Low',
       targetAudience: 'Tourists,Residents',
       recommendedAction: 'Only approach area with valid tickets during performance times. Alternative routes in place for pedestrians.',

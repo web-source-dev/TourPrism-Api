@@ -8,6 +8,7 @@ import ForecastSendSummary from '../models/forecastSendSummary.js';
 import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { transporter } from './emailService.js';
 import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
+import Logs from '../models/Logs.js'; // Added import for Logs
 
 dotenv.config();
 
@@ -109,9 +110,15 @@ const findRelevantAlerts = async (subscriber) => {
       query.$or = locationQueries;
     }
 
-    // Target audience matching (sector)
+    // Target audience matching (sector) - handle both single string and array
     if (subscriber.sector) {
-      query.targetAudience = subscriber.sector;
+      if (Array.isArray(subscriber.sector) && subscriber.sector.length > 0) {
+        // Multiple sectors - match any of them
+        query.targetAudience = { $in: subscriber.sector };
+      } else if (typeof subscriber.sector === 'string') {
+        // Single sector
+        query.targetAudience = subscriber.sector;
+      }
     }
     
     // Get alerts sorted by impact severity and start date
@@ -194,6 +201,27 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
 
     console.log(`✅ Weekly digest sent to ${subscriber.email} with ${alerts.length} alerts`);
     
+    // Log individual email send
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Weekly Digest System',
+      action: 'weekly_email_sent',
+      details: {
+        subscriberEmail: subscriber.email,
+        subscriberName: subscriber.name,
+        alertCount: alerts.length,
+        alertIds: alerts.map(a => a._id),
+        alertCategories: alerts.map(a => a.alertCategory),
+        locations: subscriber.location?.map(loc => loc.name) || [],
+        sectors: Array.isArray(subscriber.sector) ? subscriber.sector : [subscriber.sector],
+        isRegisteredUser: !!user,
+        digestType: 'weekly'
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Weekly Digest System'
+    });
+    
     // Update the subscriber's lastWeeklyForecastReceived timestamp
     await Subscriber.findByIdAndUpdate(subscriber._id, {
       lastWeeklyForecastReceived: new Date()
@@ -227,6 +255,23 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
     // --- END LOGGING ---
   } catch (error) {
     console.error(`❌ Error sending weekly digest to ${subscriber.email}:`, error);
+    
+    // Log the error
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Weekly Digest System',
+      action: 'weekly_email_sent',
+      details: {
+        subscriberEmail: subscriber.email,
+        error: error.message,
+        alertCount: alerts.length,
+        failed: true
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Weekly Digest System'
+    });
+    
     throw error;
   }
 };
@@ -293,22 +338,58 @@ const processWeeklyDigests = async () => {
     console.log(`🚨 Total alerts sent: ${totalAlertsSent}`);
     console.log(`👥 Subscribers processed: ${subscribers.length}`);
     console.log('=====================================');
+    
+    // Log overall process completion
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Weekly Digest System',
+      action: 'weekly_email_process_completed',
+      details: {
+        totalSubscribers: subscribers.length,
+        emailsSent: totalEmailsSent,
+        totalAlertsSent: totalAlertsSent,
+        processStartTime: new Date().toISOString(),
+        processEndTime: new Date().toISOString(),
+        successRate: subscribers.length > 0 ? (totalEmailsSent / subscribers.length * 100).toFixed(2) + '%' : '0%',
+        averageAlertsPerEmail: totalEmailsSent > 0 ? (totalAlertsSent / totalEmailsSent).toFixed(2) : 0
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Weekly Digest System'
+    });
   } catch (error) {
     console.error('❌ Error in weekly digest process:', error);
+    
+    // Log process error
+    await Logs.createLog({
+      userId: null,
+      userEmail: 'tourprism.alerts@gmail.com',
+      userName: 'Weekly Digest System',
+      action: 'weekly_email_process_completed',
+      details: {
+        error: error.message,
+        totalSubscribers: subscribers?.length || 0,
+        emailsSent: totalEmailsSent || 0,
+        totalAlertsSent: totalAlertsSent || 0,
+        failed: true
+      },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Weekly Digest System'
+    });
   }
 };
 
-// Schedule the job to run every Monday at 10AM Edinburgh time (GMT+1 usually)
+// Schedule the job to run every Monday and Thursday at 10AM Edinburgh time (GMT+1 usually)
 const scheduleWeeklyDigests = () => {
-  // '0 10 * * 1' = At 10:00 AM, only on Monday
+  // '0 10 * * 1,4' = At 10:00 AM, only on Monday and Thursday
   // Use edinburgh timezone offset
-  cron.schedule('0 10 * * 1', processWeeklyDigests, {
+  cron.schedule('0 10 * * 1,4', processWeeklyDigests, {
     // cron.schedule('*/1 * * * *', processWeeklyDigests, {
     scheduled: true,
     timezone: "Europe/London" // Edinburgh time
   });
   
-  console.log('Weekly alert digest job scheduled for Mondays at 10:00 AM Edinburgh time');
+  console.log('Weekly alert digest job scheduled for Mondays and Thursdays at 10:00 AM Edinburgh time');
 };
 
 // Export functions for testing or manual triggering

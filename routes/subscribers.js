@@ -69,11 +69,11 @@ router.get('/unsubscribe', async (req, res) => {
     action: 'subscriber_unsubscribed',
     userEmail: email,
     userName: subscriber.name || email.split('@')[0],
-    details: {
-      sector: subscriber.sector,
-      location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
-      subscriptionType: 'Weekly forecast'
-    },
+          details: {
+        sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
+        location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
+        subscriptionType: 'Weekly forecast'
+      },
     ipAddress: req.ip,
     userAgent: req.get('user-agent')
   });

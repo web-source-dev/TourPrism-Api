@@ -68,7 +68,7 @@ export const createSubscriber = async (req, res) => {
       userEmail: email,
       userName: name || email.split('@')[0],
       details: {
-        sector,
+        sector: Array.isArray(sector) ? sector.join(', ') : sector,
         location: Array.isArray(location) ? location.map(loc => loc.name).join(', ') : location,
         subscriptionType: 'Weekly forecast'
       },
@@ -119,7 +119,7 @@ export const updateSubscriberStatusByEmail = async (req, res) => {
       userEmail: email,
       userName: subscriber.name || email.split('@')[0],
       details: {
-        sector: subscriber.sector,
+        sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
         location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
         subscriptionType: 'Weekly forecast'
       },

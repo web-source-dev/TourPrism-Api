@@ -1,10 +1,7 @@
 import dotenv from 'dotenv';
 import cron from 'node-cron';
-import mongoose from 'mongoose';
-import connectDB from '../config/db.js';
 import Alert from '../models/Alert.js';
 import Logs from '../models/Logs.js';
-import User from '../models/User.js';
 
 dotenv.config();
 
@@ -63,7 +60,7 @@ const TARGET_AUDIENCES = [
 ];
 
 // Severity levels
-const SEVERITY_LEVELS = ['Minor', 'Moderate', 'Severe'];
+const SEVERITY_LEVELS = ['Low', 'Moderate', 'High'];
 
 // Priority levels
 const PRIORITY_LEVELS = ['low', 'medium', 'high'];
@@ -108,15 +105,15 @@ class AutomatedAlertGenerator {
   Airline, Attraction, Car Rental, Cruise Line, DMO, Event Manager, Hotel, OTA, Tour Guide, Tour Operator, Travel Agency, Travel Media, Other
   
   IMPACT LEVELS (USE EXACTLY AS SHOWN):
-  - Minor: Small disruptions with minimal travel impact
+  - Low: Small disruptions with minimal travel impact
   - Moderate: Noticeable disruptions affecting travel plans
-  - Severe: Major disruptions causing significant travel problems
+  - High: Major disruptions causing significant travel problems
   
   PRIORITY LEVELS (USE EXACTLY AS SHOWN):
-  - low: Minor importance
+  - low: Low importance
   - medium: Moderate importance  
   - high: High importance
-  
+    
   ALERT STRUCTURE:
   {
     "alerts": [
@@ -125,7 +122,7 @@ class AutomatedAlertGenerator {
         "description": "Detailed description with source attribution",
         "alertCategory": "Category from real data",
         "alertType": "Specific type from category",
-        "impact": "Minor|Moderate|Severe (use exactly one of these)",
+        "impact": "Low|Moderate|High (use exactly one of these)",
         "priority": "low|medium|high (use exactly one of these)",
         "targetAudience": ["Relevant audiences"],
         "recommendedAction": "What people should do based on real situation",
@@ -423,13 +420,13 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
     // Fix impact values in JSON
     fixed = fixed.replace(/"impact":\s*"([^"]*?)"/g, (match, impact) => {
       const impactMappings = {
-        'None': 'Minor',
+        'None': 'Low',
         'Unknown': 'Moderate',
-        'Low': 'Minor',
+        'Low': 'Low',
         'Medium': 'Moderate',
-        'High': 'Severe',
-        'Critical': 'Severe',
-        'Major': 'Severe'
+        'High': 'High',
+        'Critical': 'High',
+        'Major': 'High'
       };
       if (impactMappings[impact]) {
         return `"impact": "${impactMappings[impact]}"`;
@@ -564,16 +561,16 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
 
   fixInvalidImpactValues(alertData) {
     const impactMappings = {
-      'None': 'Minor',
+      'None': 'Low',
       'Unknown': 'Moderate',
-      'Low': 'Minor',
+      'Low': 'Low',
       'Medium': 'Moderate',
-      'High': 'Severe',
-      'Critical': 'Severe',
-      'Major': 'Severe',
-      'Minor': 'Minor',
+      'High': 'High',
+      'Critical': 'High',
+      'Major': 'High',
+      'Minor': 'Low',
       'Moderate': 'Moderate',
-      'Severe': 'Severe'
+      'Severe': 'High'
     };
 
     if (alertData.impact && impactMappings[alertData.impact]) {
@@ -938,7 +935,8 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
 
   async generateAlertsForAllCities() {
     console.log('Starting automated alert generation for all cities...');
-
+    
+    const processStartTime = new Date();
     const results = {
       total: 0,
       approved: 0,
@@ -1018,23 +1016,37 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
       }
     }
 
+    const processEndTime = new Date();
+    const processDuration = processEndTime - processStartTime;
+
     // Log the results
-    await this.logGenerationResults(results);
+    await this.logGenerationResults(results, processStartTime, processEndTime, processDuration);
 
     console.log('Automated alert generation completed:', results);
     return results;
   }
 
-  async logGenerationResults(results) {
+  async logGenerationResults(results, processStartTime, processEndTime, processDuration) {
     try {
       await Logs.createLog({
         userId: null,
-        userEmail: 'automated-system@tourprism.com',
+        userEmail: 'tourprism.alerts@gmail.com',
         userName: 'Automated Alert Generator',
         action: 'automated_alert_generation_completed',
         details: {
-          results,
-          timestamp: new Date().toISOString()
+          totalAlertsGenerated: results.total,
+          totalApproved: results.approved,
+          totalPending: results.pending,
+          totalDuplicates: results.duplicates,
+          totalErrors: results.errors,
+          cityBreakdown: results.cityResults,
+          processStartTime: processStartTime.toISOString(),
+          processEndTime: processEndTime.toISOString(),
+          processDurationMs: processDuration,
+          processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+          citiesProcessed: Object.keys(CITIES),
+          successRate: results.total > 0 ? ((results.approved + results.pending) / results.total * 100).toFixed(2) + '%' : '0%',
+          averageAlertsPerCity: (results.total / Object.keys(CITIES).length).toFixed(2)
         },
         ipAddress: '127.0.0.1',
         userAgent: 'AutomatedAlertGenerator/1.0'
@@ -1049,8 +1061,9 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
 const scheduleAutomatedAlerts = () => {
   const generator = new AutomatedAlertGenerator();
 
-  // Schedule for Monday, Wednesday, Friday at 9:00 AM Edinburgh time
-  cron.schedule('0 9 * * 1,3,5', async () => {
+  // Schedule for Monday and Thursday at 8:00 AM Edinburgh time
+  cron.schedule('0 8 * * 1,4', async () => {
+  // cron.schedule('*/1 * * * *', async () => {
     console.log('Starting scheduled automated alert generation...');
     try {
       await generator.generateAlertsForAllCities();
@@ -1062,7 +1075,7 @@ const scheduleAutomatedAlerts = () => {
     timezone: "Europe/London"
   });
 
-  console.log('Automated alert generation scheduled for Monday, Wednesday, Friday at 9:00 AM Edinburgh time');
+  console.log('Automated alert generation scheduled for Monday and Thursday at 8:00 AM Edinburgh time');
 };
 
 // Export functions for testing or manual triggering

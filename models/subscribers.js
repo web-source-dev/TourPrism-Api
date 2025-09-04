@@ -18,7 +18,8 @@ const subscriberSchema = new mongoose.Schema({
         }
     ],
     sector: {
-        type: String,
+        type: [String], // Changed from String to [String] to support multiple sectors
+        default: []
     },
     isActive: {
         type: Boolean,

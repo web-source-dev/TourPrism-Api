@@ -22,22 +22,7 @@ const router = express.Router();
  * @desc    Get all followed alerts in the user's Action Hub
  * @access  Private (requires authentication)
  */
-router.get('/', authenticate, async (req, res, next) => {
-  try {
-    // Log the request
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_viewed',
-      details: { view: 'all_alerts' },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-  } catch (error) {
-    console.error('Error logging action hub view:', error);
-    // Continue execution even if logging fails
-  }
-  
+router.get('/', authenticate, async (req, res, next) => {  
   // Call the original controller
   return getActionHubAlerts(req, res);
 });
@@ -48,24 +33,6 @@ router.get('/', authenticate, async (req, res, next) => {
  * @access  Private (requires authentication)
  */
 router.get('/:id', authenticate, async (req, res, next) => {
-  try {
-    // Log the request
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_viewed',
-      details: { 
-        view: 'single_alert',
-        alertId: req.params.id
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-  } catch (error) {
-    console.error('Error logging action hub item view:', error);
-    // Continue execution even if logging fails
-  }
-  
   // Call the original controller
   return getActionHubAlertById(req, res);
 });
@@ -99,25 +66,6 @@ router.post('/:id/resolve', authenticate, authenticateRole(['admin', 'manager'])
 router.post('/:id/tab', authenticate, async (req, res, next) => {
   const { id } = req.params;
   const { tab } = req.body;
-  
-  try {
-    // Log tab change 
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_updated',
-      details: { 
-        actionHubId: id,
-        change: 'active_tab',
-        tab
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-  } catch (error) {
-    console.error('Error logging tab change:', error);
-    // Continue execution even if logging fails
-  }
   
   // Call the original controller
   return setActiveTab(req, res);
