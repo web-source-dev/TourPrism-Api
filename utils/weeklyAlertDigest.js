@@ -240,6 +240,11 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
     const dayOfWeek = now.toLocaleDateString('en-GB', { weekday: 'long' });
     const alertTypes = Array.from(new Set(alerts.map(a => a.alertCategory).filter(Boolean)));
     const alertIds = alerts.map(a => a._id);
+    // Convert sector array to string for ForecastSendSummary
+    const sectorString = Array.isArray(subscriber.sector) 
+      ? subscriber.sector.join(', ') 
+      : (subscriber.sector || '');
+
     await ForecastSendSummary.create({
       sentAt: now,
       dayOfWeek,
@@ -249,7 +254,7 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
       recipients: [subscriber.email],
       alertIds,
       digestType: 'weekly',
-      sector: subscriber.sector || '',
+      sector: sectorString,
       rawAlerts: alerts
     });
     // --- END LOGGING ---
@@ -383,8 +388,8 @@ const processWeeklyDigests = async () => {
 const scheduleWeeklyDigests = () => {
   // '0 10 * * 1,4' = At 10:00 AM, only on Monday and Thursday
   // Use edinburgh timezone offset
-  cron.schedule('0 10 * * 1,4', processWeeklyDigests, {
-    // cron.schedule('*/1 * * * *', processWeeklyDigests, {
+  // cron.schedule('0 10 * * 1,4', processWeeklyDigests, {
+    cron.schedule('*/1 * * * *', processWeeklyDigests, {
     scheduled: true,
     timezone: "Europe/London" // Edinburgh time
   });

@@ -780,8 +780,13 @@ router.get(
         user.firstName = subscriber.name.split(' ')[0];
         user.lastName = subscriber.name.split(' ').slice(1).join(' ');
 
+        // Convert sector array to string for company type
+        const sectorString = Array.isArray(subscriber.sector) 
+          ? subscriber.sector.join(', ') 
+          : (subscriber.sector || '');
+
         user.company = {
-          type: subscriber.sector || '',
+          type: sectorString,
           MainOperatingRegions: []
         };
         if (subscriber.location && subscriber.location.length > 0) {
