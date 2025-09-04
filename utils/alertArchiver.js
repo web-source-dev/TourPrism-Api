@@ -86,6 +86,7 @@ export const archiveExpiredAlerts = async () => {
       console.log(`Successfully archived ${result.archived} alerts with expired end dates`);
     }
 
+    if(result.archived > 0) {
     // Log the archiving process
     await Logs.createLog({
       userId: null,
@@ -107,6 +108,7 @@ export const archiveExpiredAlerts = async () => {
       ipAddress: '127.0.0.1',
       userAgent: 'Alert Archiver System'
     });
+  }
 
     return result;
   } catch (error) {
