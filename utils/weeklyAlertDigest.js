@@ -388,8 +388,8 @@ const processWeeklyDigests = async () => {
 const scheduleWeeklyDigests = () => {
   // '0 10 * * 1,4' = At 10:00 AM, only on Monday and Thursday
   // Use edinburgh timezone offset
-  // cron.schedule('0 10 * * 1,4', processWeeklyDigests, {
-    cron.schedule('*/1 * * * *', processWeeklyDigests, {
+  cron.schedule('0 10 * * 1,4', processWeeklyDigests, {
+    // cron.schedule('*/1 * * * *', processWeeklyDigests, {
     scheduled: true,
     timezone: "Europe/London" // Edinburgh time
   });
