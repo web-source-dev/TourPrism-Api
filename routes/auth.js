@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as MicrosoftStrategy } from "passport-microsoft";
 import User from "../models/User.js";
 import Logs from "../models/Logs.js";
 import { generateOTP } from "../utils/emailService.js";
@@ -65,6 +66,58 @@ passport.use(
   )
 );
 
+// // Configure Microsoft Strategy
+// passport.use(
+//   new MicrosoftStrategy(
+//     {
+//       clientID: process.env.MICROSOFT_CLIENT_ID,
+//       clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+//       callbackURL: "https://tourprism.onrender.com/auth/microsoft/callback",
+//       scope: ['user.read']
+//     },
+//     async (accessToken, refreshToken, profile, done) => {
+//       try {
+//         let user = await User.findOne({ microsoftId: profile.id });
+//         if (!user) {
+//           user = await User.create({
+//             microsoftId: profile.id,
+//             email: profile.emails[0].value,
+//           });
+          
+//           // Log new user signup via Microsoft
+//           await Logs.createLog({
+//             userId: user._id,
+//             userEmail: user.email,
+//             userName: profile.displayName || user.email.split('@')[0],
+//             action: 'signup',
+//             details: {
+//               method: 'microsoft',
+//               signupCompleted: true
+//             }
+//           });
+//         } else {
+//           // Log Microsoft login
+//           await Logs.createLog({
+//             userId: user._id,
+//             userEmail: user.email,
+//             userName: user.firstName && user.lastName ? 
+//               `${user.firstName} ${user.lastName}` : 
+//               (user.firstName || user.email.split('@')[0]),
+//             action: 'login',
+//             details: {
+//               method: 'microsoft',
+//               success: true
+//             }
+//           });
+//         }
+//         return done(null, user);
+//       } catch (error) {
+//         return done(error, null);
+//       }
+//     }
+//   )
+// );
+
 // Register Route
 router.post("/register", async (req, res) => {
   try {
@@ -78,6 +131,11 @@ router.post("/register", async (req, res) => {
     // Check if email is registered with Google
     if (await User.findOne({ email, googleId: { $exists: true } })) {
       return res.status(400).json({ message: "This email is registered with Google. Please continue with Google login." });
+    }
+    
+    // Check if email is registered with Microsoft
+    if (await User.findOne({ email, microsoftId: { $exists: true } })) {
+      return res.status(400).json({ message: "This email is registered with Microsoft. Please continue with Microsoft login." });
     }
 
     // Check if email exists in subscribers collection
@@ -324,6 +382,10 @@ router.post("/forgot-password", async (req, res) => {
     if (user.googleId) {
       return res.status(400).json({ message: "This email is registered with Google. Please continue with Google login." });
     }
+    
+    if (user.microsoftId) {
+      return res.status(400).json({ message: "This email is registered with Microsoft. Please continue with Microsoft login." });
+    }
 
     // Generate OTP
     const otp = generateOTP();
@@ -447,6 +509,10 @@ router.post("/login", async (req, res) => {
       // User found with this email
       if (user.googleId) {
         return res.status(400).json({ message: "This email is registered with Google. Please continue with Google login." });
+      }
+      
+      if (user.microsoftId) {
+        return res.status(400).json({ message: "This email is registered with Microsoft. Please continue with Microsoft login." });
       }
 
       // Check if user is restricted or deleted
@@ -810,6 +876,55 @@ router.get(
   }
 );
 
+// Microsoft OAuth Routes
+router.get(
+  "/microsoft",
+  passport.authenticate("microsoft", { scope: ["user.read"] })
+);
+
+router.get(
+  "/microsoft/callback",
+  passport.authenticate("microsoft", { session: false }),
+  async (req, res) => {
+    // Automatically verify email for Microsoft sign-in users
+    const user = await User.findById(req.user._id);
+    const subscriber = await Subscriber.findOne({ email: user.email });
+    if (user && !user.isVerified) {
+      user.isVerified = true;
+
+      if (subscriber) {
+        user.firstName = subscriber.name.split(' ')[0];
+        user.lastName = subscriber.name.split(' ').slice(1).join(' ');
+
+        // Convert sector array to string for company type
+        const sectorString = Array.isArray(subscriber.sector) 
+          ? subscriber.sector.join(', ') 
+          : (subscriber.sector || '');
+
+        user.company = {
+          type: sectorString,
+          MainOperatingRegions: []
+        };
+        if (subscriber.location && subscriber.location.length > 0) {
+          user.company.MainOperatingRegions = subscriber.location.map(loc => ({
+            name: loc.name || '',
+            latitude: loc.latitude || 0,
+            longitude: loc.longitude || 0,
+            placeId: loc.placeId || ''
+          }));
+        }
+      }
+
+      await user.save();
+    }
+
+    const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+    res.redirect(`https://tourprism.com/auth/microsoft/callback?token=${token}`);
+  }
+);
+
 // User Profile Route
 router.get("/user/profile", async (req, res) => {
   try {
@@ -904,6 +1019,231 @@ router.post("/change-password", async (req, res) => {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ message: "Invalid token" });
     }
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Unified Authentication Route - handles both login and signup
+router.post("/unified-auth", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    console.log(`Unified auth attempt for email: ${email}`);
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+    
+    if (user) {
+      // User exists - handle login
+      console.log(`User exists, attempting login for: ${email}`);
+      
+      // Check if user is registered with Google
+      if (user.googleId) {
+        return res.status(400).json({ message: "This email is registered with Google. Please continue with Google login." });
+      }
+      
+      // Check if user is registered with Microsoft
+      if (user.microsoftId) {
+        return res.status(400).json({ message: "This email is registered with Microsoft. Please continue with Microsoft login." });
+      }
+
+      // Check if user is restricted or deleted
+      if (user.status === 'restricted') {
+        return res.status(403).json({ message: "Your account has been restricted. Please contact support for assistance." });
+      }
+      
+      if (user.status === 'deleted') {
+        return res.status(403).json({ message: "Your account has been deleted. Please contact support for assistance." });
+      }
+
+      // Check password
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (isMatch) {
+        // Check if email is verified
+        if (!user.isVerified) {
+          // Generate OTP
+          const otp = generateOTP();
+          user.otp = otp;
+          user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+          user.otpLastSent = new Date();
+          await user.save();
+
+          // Send verification email
+          await sendVerificationEmail(email, otp);
+          
+          // Log login attempt requiring verification
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: user.firstName && user.lastName ? 
+              `${user.firstName} ${user.lastName}` : 
+              (user.firstName || user.email.split('@')[0]),
+            action: 'login',
+            details: {
+              method: 'email',
+              success: false,
+              reason: 'needs_verification'
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+          });
+
+          return res.status(200).json({
+            message: "Please verify your email",
+            needsVerification: true,
+            userId: user._id
+          });
+        }
+
+        // Update last login timestamp
+        user.lastLogin = new Date();
+        await user.save();
+
+        // Generate JWT
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+          expiresIn: "24h",
+        });
+        
+        // Log successful login
+        await Logs.createLog({
+          userId: user._id,
+          userEmail: user.email,
+          userName: user.firstName && user.lastName ? 
+            `${user.firstName} ${user.lastName}` : 
+            (user.firstName || user.email.split('@')[0]),
+          action: 'login',
+          details: {
+            method: 'email',
+            success: true,
+            role: user.role
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+
+        return res.json({ 
+          token, 
+          user: { 
+            id: user._id, 
+            email: user.email, 
+            role: user.role,
+            isVerified: user.isVerified
+          } 
+        });
+      } else {
+        // Log failed login due to incorrect password
+        await Logs.createLog({
+          userId: user._id,
+          userEmail: user.email,
+          userName: user.firstName && user.lastName ? 
+            `${user.firstName} ${user.lastName}` : 
+            (user.firstName || user.email.split('@')[0]),
+          action: 'login',
+          details: {
+            method: 'email',
+            success: false,
+            reason: 'invalid_password'
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+        
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+    } else {
+      // User doesn't exist - handle signup
+      console.log(`User doesn't exist, creating new account for: ${email}`);
+      
+      // Check if email exists in subscribers collection
+      const subscriber = await Subscriber.findOne({ email });
+      let subscriberData = null;
+      
+      if (subscriber) {
+        subscriberData = await Subscriber.findOne({ email });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Generate OTP
+      const otp = generateOTP();
+      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+      // Create user with data from subscriber if available
+      const userData = {
+        email,
+        password: hashedPassword,
+        otp,
+        otpExpiry,
+        otpLastSent: new Date()
+      };
+
+      // If subscriber data exists, populate user data from it
+      if (subscriberData) {
+        // Split name into first and last name
+        if (subscriberData.name) {
+          const nameParts = subscriberData.name.trim().split(' ');
+          if (nameParts.length > 0) {
+            userData.firstName = nameParts[0];
+            if (nameParts.length > 1) {
+              userData.lastName = nameParts.slice(1).join(' ');
+            }
+          }
+        }
+
+        // Set company information
+        userData.company = {
+          type: subscriberData.sector || '',
+          MainOperatingRegions: []
+        };
+
+        // Add location data if available
+        if (subscriberData.location && subscriberData.location.length > 0) {
+          userData.company.MainOperatingRegions = subscriberData.location.map(loc => ({
+            name: loc.name || '',
+            latitude: loc.latitude || 0,
+            longitude: loc.longitude || 0,
+            placeId: loc.placeId || ''
+          }));
+        }
+      }
+
+      // Create user with the populated data
+      user = await User.create(userData);
+
+      // Send verification email
+      await sendVerificationEmail(email, otp);
+      
+      // Log signup
+      await Logs.createLog({
+        userId: user._id,
+        userEmail: email,
+        userName: userData.firstName && userData.lastName ? 
+          `${userData.firstName} ${userData.lastName}` : 
+          (userData.firstName || email.split('@')[0]),
+        action: 'signup',
+        details: {
+          method: 'email',
+          signupCompleted: false,
+          awaitingVerification: true
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+
+      return res.status(200).json({ 
+        message: "Account created successfully. Please check your email for verification code.",
+        needsVerification: true,
+        userId: user._id
+      });
+    }
+  } catch (error) {
+    console.error("Unified auth error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

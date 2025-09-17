@@ -851,4 +851,105 @@ router.post("/:id/flag", authenticate, async (req, res) => {
   }
 });
 
+// Get city alert summary for home page
+router.get('/cities/summary', optionalAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    // Find all unique cities with alerts in the next 7 days
+    const cityAlerts = await Alert.aggregate([
+      {
+        $match: {
+          status: 'approved',
+          $or: [
+            {
+              expectedStart: {
+                $gte: now,
+                $lte: nextWeek
+              }
+            },
+            {
+              expectedEnd: {
+                $gte: now,
+                $lte: nextWeek
+              }
+            },
+            {
+              $and: [
+                { expectedStart: { $lte: now } },
+                { expectedEnd: { $gte: now } }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: {
+            city: { $ifNull: ['$originCity', '$city'] }
+          },
+          alertCount: { $sum: 1 },
+          alerts: { $push: '$$ROOT' }
+        }
+      },
+      {
+        $match: {
+          '_id.city': { $ne: null, $ne: '' }
+        }
+      }
+    ]);
+
+    const cityData = cityAlerts.map(cityGroup => {
+      const city = cityGroup._id.city;
+      const alerts = cityGroup.alerts;
+      const alertCount = cityGroup.alertCount;
+      
+      // Find highest impact level
+      let highestImpactLevel = 'Low';
+      let hasHighImpact = false;
+      let hasModerateImpact = false;
+      
+      alerts.forEach(alert => {
+        if (alert.impact === 'High') {
+          highestImpactLevel = 'High';
+          hasHighImpact = true;
+        } else if (alert.impact === 'Moderate' && !hasHighImpact) {
+          highestImpactLevel = 'Moderate';
+          hasModerateImpact = true;
+        }
+      });
+      
+      // Find most common category
+      const categoryCount = {};
+      alerts.forEach(alert => {
+        if (alert.alertCategory) {
+          categoryCount[alert.alertCategory] = (categoryCount[alert.alertCategory] || 0) + 1;
+        }
+      });
+      
+      const highestImpactCategory = Object.keys(categoryCount).reduce((a, b) => 
+        categoryCount[a] > categoryCount[b] ? a : b, 'General'
+      );
+      
+      return {
+        city,
+        alertCount,
+        highestImpactCategory,
+        highestImpactLevel,
+        hasHighImpact,
+        hasModerateImpact
+      };
+    });
+
+    // Sort by alert count descending
+    cityData.sort((a, b) => b.alertCount - a.alertCount);
+
+    res.json(cityData);
+  } catch (error) {
+    console.error('Error fetching city summary:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 export default router;

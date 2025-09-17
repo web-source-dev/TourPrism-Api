@@ -76,13 +76,6 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
-
-// Add debugging middleware to log CORS issues
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-  next();
-});
-
 // Error handling middleware for CORS
 app.use((err, req, res, next) => {
   if (err.message === 'Not allowed by CORS') {

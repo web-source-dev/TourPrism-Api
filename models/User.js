@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
     firstName:String,
     lastName:String,
     googleId: String,
+    microsoftId: String,
     password: String,
     isPremium: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
