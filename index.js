@@ -168,7 +168,7 @@ const PORT = process.env.PORT || 8000;
 
 // Schedule weekly digest emails
 scheduleWeeklyDigests();
-
+ 
 // Schedule automated alert generation
 scheduleAutomatedAlerts();
 
