@@ -66,57 +66,57 @@ passport.use(
   )
 );
 
-// // Configure Microsoft Strategy
-// passport.use(
-//   new MicrosoftStrategy(
-//     {
-//       clientID: process.env.MICROSOFT_CLIENT_ID,
-//       clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-//       callbackURL: "https://tourprism.onrender.com/auth/microsoft/callback",
-//       scope: ['user.read']
-//     },
-//     async (accessToken, refreshToken, profile, done) => {
-//       try {
-//         let user = await User.findOne({ microsoftId: profile.id });
-//         if (!user) {
-//           user = await User.create({
-//             microsoftId: profile.id,
-//             email: profile.emails[0].value,
-//           });
+// Configure Microsoft Strategy
+passport.use(
+  new MicrosoftStrategy(
+    {
+      clientID: process.env.MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+      callbackURL: "https://tourprism.onrender.com/auth/microsoft/callback",
+      scope: ['user.read']
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        let user = await User.findOne({ microsoftId: profile.id });
+        if (!user) {
+          user = await User.create({
+            microsoftId: profile.id,
+            email: profile.emails[0].value,
+          });
           
-//           // Log new user signup via Microsoft
-//           await Logs.createLog({
-//             userId: user._id,
-//             userEmail: user.email,
-//             userName: profile.displayName || user.email.split('@')[0],
-//             action: 'signup',
-//             details: {
-//               method: 'microsoft',
-//               signupCompleted: true
-//             }
-//           });
-//         } else {
-//           // Log Microsoft login
-//           await Logs.createLog({
-//             userId: user._id,
-//             userEmail: user.email,
-//             userName: user.firstName && user.lastName ? 
-//               `${user.firstName} ${user.lastName}` : 
-//               (user.firstName || user.email.split('@')[0]),
-//             action: 'login',
-//             details: {
-//               method: 'microsoft',
-//               success: true
-//             }
-//           });
-//         }
-//         return done(null, user);
-//       } catch (error) {
-//         return done(error, null);
-//       }
-//     }
-//   )
-// );
+          // Log new user signup via Microsoft
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: profile.displayName || user.email.split('@')[0],
+            action: 'signup',
+            details: {
+              method: 'microsoft',
+              signupCompleted: true
+            }
+          });
+        } else {
+          // Log Microsoft login
+          await Logs.createLog({
+            userId: user._id,
+            userEmail: user.email,
+            userName: user.firstName && user.lastName ? 
+              `${user.firstName} ${user.lastName}` : 
+              (user.firstName || user.email.split('@')[0]),
+            action: 'login',
+            details: {
+              method: 'microsoft',
+              success: true
+            }
+          });
+        }
+        return done(null, user);
+      } catch (error) {
+        return done(error, null);
+      }
+    }
+  )
+);
 
 // Register Route
 router.post("/register", async (req, res) => {
