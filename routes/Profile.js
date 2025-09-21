@@ -8,6 +8,43 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import sendCollaboratorInvitation from '../utils/emailTemplates/collaboratorInvitation.js';
 
+// Helper function to generate JWT token with comprehensive user data
+const generateUserToken = (user, collaborator = null) => {
+  const tokenPayload = {
+    userId: user._id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    isVerified: user.isVerified,
+    isPremium: user.isPremium,
+    role: user.role,
+    status: user.status,
+    lastLogin: user.lastLogin,
+    weeklyForecastSubscribed: user.weeklyForecastSubscribed,
+    weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
+    lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
+    company: user.company,
+    preferences: user.preferences,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+
+  // Add collaborator information if present
+  if (collaborator) {
+    tokenPayload.isCollaborator = true;
+    tokenPayload.collaboratorEmail = collaborator.email;
+    tokenPayload.collaboratorRole = collaborator.role;
+    tokenPayload.collaboratorName = collaborator.name;
+    tokenPayload.collaboratorStatus = collaborator.status;
+  } else {
+    tokenPayload.isCollaborator = false;
+  }
+
+  return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+    expiresIn: "24h",
+  });
+};
+
 const router = express.Router();
 
 // Custom middleware to check if user is the account owner or a manager collaborator
@@ -869,15 +906,8 @@ router.post('/collaborators/accept-invitation', async (req, res) => {
     
     await user.save();
     
-    // Generate a JWT token for the collaborator
-    const payload = {
-      userId: user._id,
-      isCollaborator: true,
-      collaboratorEmail: email,
-      collaboratorRole: collaborator.role
-    };
-    
-    const jwtToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // Generate a JWT token with comprehensive user and collaborator data
+    const jwtToken = generateUserToken(user, collaborator);
     
     res.json({
       message: 'Invitation accepted successfully',

@@ -13,6 +13,43 @@ import SibApiV3Sdk from "sib-api-v3-sdk";
 dotenv.config();
 import Subscriber from "../models/subscribers.js";
 
+// Helper function to generate JWT token with comprehensive user data
+const generateUserToken = (user, collaborator = null) => {
+  const tokenPayload = {
+    userId: user._id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    isVerified: user.isVerified,
+    isPremium: user.isPremium,
+    role: user.role,
+    status: user.status,
+    lastLogin: user.lastLogin,
+    weeklyForecastSubscribed: user.weeklyForecastSubscribed,
+    weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
+    lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
+    company: user.company,
+    preferences: user.preferences,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+
+  // Add collaborator information if present
+  if (collaborator) {
+    tokenPayload.isCollaborator = true;
+    tokenPayload.collaboratorEmail = collaborator.email;
+    tokenPayload.collaboratorRole = collaborator.role;
+    tokenPayload.collaboratorName = collaborator.name;
+    tokenPayload.collaboratorStatus = collaborator.status;
+  } else {
+    tokenPayload.isCollaborator = false;
+  }
+
+  return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+    expiresIn: "24h",
+  });
+};
+
 const router = express.Router();
 
 // Configure Google Strategy
@@ -250,9 +287,7 @@ router.post("/verify-email", async (req, res) => {
     user.otpExpiry = undefined;
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "24h", // Changed from 1h to 24h
-    });
+    const token = generateUserToken(user);
     
     // Log email verification
     await Logs.createLog({
@@ -602,10 +637,8 @@ router.post("/login", async (req, res) => {
         user.lastLogin = new Date();
         await user.save();
 
-        // Generate JWT
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-          expiresIn: "24h",
-        });
+        // Generate JWT with comprehensive user data
+        const token = generateUserToken(user);
         
         // Log successful login
         await Logs.createLog({
@@ -738,15 +771,8 @@ router.post("/login", async (req, res) => {
             parentUser.lastLogin = new Date();
             await parentUser.save();
             
-            // Generate JWT with both user and collaborator info
-            const token = jwt.sign({ 
-              userId: parentUser._id,
-              isCollaborator: true,
-              collaboratorEmail: email,
-              collaboratorRole: collaborator.role
-            }, process.env.JWT_SECRET, {
-              expiresIn: "24h",
-            });
+            // Generate JWT with comprehensive user and collaborator info
+            const token = generateUserToken(parentUser, collaborator);
             
             // Log successful collaborator login
             await Logs.createLog({
@@ -870,9 +896,7 @@ router.get(
       await user.save();
     }
 
-    const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, {
-      expiresIn: "24h", // Changed from 1h to 24h
-    });
+    const token = generateUserToken(req.user);
     res.redirect(`https://tourprism.com/auth/google/callback?token=${token}`);
   }
 );
@@ -919,9 +943,7 @@ router.get(
       await user.save();
     }
 
-    const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, {
-      expiresIn: "24h",
-    });
+    const token = generateUserToken(req.user);
     res.redirect(`https://tourprism.com/auth/microsoft/callback?token=${token}`);
   }
 );
@@ -1104,10 +1126,8 @@ router.post("/unified-auth", async (req, res) => {
         user.lastLogin = new Date();
         await user.save();
 
-        // Generate JWT
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-          expiresIn: "24h",
-        });
+        // Generate JWT with comprehensive user data
+        const token = generateUserToken(user);
         
         // Log successful login
         await Logs.createLog({
@@ -1153,11 +1173,326 @@ router.post("/unified-auth", async (req, res) => {
           userAgent: req.get('user-agent')
         });
         
+        // Password didn't match - check for collaborator login
+        console.log(`Password didn't match for user, checking for collaborator login for: ${email}`);
+        
+        // Check for collaborator login
+        const parentUser = await User.findOne({ 
+          "collaborators.email": email 
+        });
+        
+        if (parentUser) {
+          console.log(`Found parent user for collaborator: ${email}`);
+          
+          // Find the matching collaborator
+          const collaborator = parentUser.collaborators.find(c => c.email === email);
+          
+          if (collaborator) {
+            console.log(`Found collaborator: ${email}, status: ${collaborator.status}`);
+            
+            // Check if collaborator has password set up
+            if (!collaborator.password) {
+              // Log collaborator account not set up
+              await Logs.createLog({
+                userId: parentUser._id,
+                userEmail: email,
+                userName: collaborator.name || email.split('@')[0],
+                action: 'login',
+                details: {
+                  method: 'collaborator',
+                  success: false,
+                  reason: 'account_setup_incomplete'
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+              });
+              
+              return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
+            }
+            
+            // Check collaborator password
+            try {
+              const isCollabMatch = await bcrypt.compare(password, collaborator.password);
+              
+              if (isCollabMatch) {
+                // Check if parent user is restricted or deleted
+                if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
+                  // Log failed collaborator login due to parent account status
+                  await Logs.createLog({
+                    userId: parentUser._id,
+                    userEmail: email,
+                    userName: collaborator.name || email.split('@')[0],
+                    action: 'login',
+                    details: {
+                      method: 'collaborator',
+                      success: false,
+                      reason: 'parent_account_' + parentUser.status
+                    },
+                    ipAddress: req.ip,
+                    userAgent: req.get('user-agent')
+                  });
+                  
+                  return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
+                }
+                
+                // Check collaborator status - only allow active collaborators to login
+                if (collaborator.status !== 'active') {
+                  const statusReason = `collaborator_status_${collaborator.status}`;
+                  let statusMessage = "Your account is not active. Please contact the account owner for assistance.";
+                  
+                  if (collaborator.status === 'invited') {
+                    statusMessage = "Your invitation is pending acceptance. Please check your email for instructions.";
+                  } else if (collaborator.status === 'restricted') {
+                    statusMessage = "Your access has been restricted. Please contact the account owner for assistance.";
+                  } else if (collaborator.status === 'deleted') {
+                    statusMessage = "Your access has been revoked. Please contact the account owner for assistance.";
+                  }
+                  
+                  // Log failed collaborator login due to status
+                  await Logs.createLog({
+                    userId: parentUser._id,
+                    userEmail: email,
+                    userName: collaborator.name || email.split('@')[0],
+                    action: 'login',
+                    details: {
+                      method: 'collaborator',
+                      success: false,
+                      reason: statusReason
+                    },
+                    ipAddress: req.ip,
+                    userAgent: req.get('user-agent')
+                  });
+                  
+                  return res.status(403).json({ message: statusMessage });
+                }
+                
+                // Update last login timestamp for parent user
+                parentUser.lastLogin = new Date();
+                await parentUser.save();
+                
+                // Generate JWT with comprehensive user and collaborator info
+                const token = generateUserToken(parentUser, collaborator);
+                
+                // Log successful collaborator login
+                await Logs.createLog({
+                  userId: parentUser._id,
+                  userEmail: email,
+                  userName: collaborator.name || email.split('@')[0],
+                  action: 'login',
+                  details: {
+                    method: 'collaborator',
+                    success: true,
+                    role: collaborator.role,
+                    parentAccount: parentUser.email
+                  },
+                  ipAddress: req.ip,
+                  userAgent: req.get('user-agent')
+                });
+
+                return res.json({ 
+                  token, 
+                  user: { 
+                    id: parentUser._id, 
+                    email: parentUser.email,
+                    collaborator: {
+                      email: collaborator.email,
+                      role: collaborator.role,
+                      name: collaborator.name || "",
+                      status: collaborator.status
+                    }
+                  } 
+                });
+              } else {
+                // Log failed collaborator login due to incorrect password
+                await Logs.createLog({
+                  userId: parentUser._id,
+                  userEmail: email,
+                  userName: collaborator.name || email.split('@')[0],
+                  action: 'login',
+                  details: {
+                    method: 'collaborator',
+                    success: false,
+                    reason: 'invalid_password'
+                  },
+                  ipAddress: req.ip,
+                  userAgent: req.get('user-agent')
+                });
+                
+                return res.status(400).json({ message: "Invalid credentials - incorrect password" });
+              }
+            } catch (bcryptError) {
+              return res.status(400).json({ message: "Authentication error during password verification" });
+            }
+          } else {
+            console.log('Collaborator not found in parent user document');
+          }
+        } else {
+          console.log('No parent user found for collaborator email:', email);
+        }
+        
+        // If we reach here, neither user password nor collaborator password matched
         return res.status(400).json({ message: "Invalid credentials" });
       }
     } else {
-      // User doesn't exist - handle signup
-      console.log(`User doesn't exist, creating new account for: ${email}`);
+      // User doesn't exist - check for collaborator login first
+      console.log(`User doesn't exist, checking for collaborator login for: ${email}`);
+      
+      // Check for collaborator login
+      const parentUser = await User.findOne({ 
+        "collaborators.email": email 
+      });
+      
+      if (parentUser) {
+        console.log(`Found parent user for collaborator: ${email}`);
+        
+        // Find the matching collaborator
+        const collaborator = parentUser.collaborators.find(c => c.email === email);
+        
+        if (collaborator) {
+          console.log(`Found collaborator: ${email}, status: ${collaborator.status}`);
+          
+          // Check if collaborator has password set up
+          if (!collaborator.password) {
+            // Log collaborator account not set up
+            await Logs.createLog({
+              userId: parentUser._id,
+              userEmail: email,
+              userName: collaborator.name || email.split('@')[0],
+              action: 'login',
+              details: {
+                method: 'collaborator',
+                success: false,
+                reason: 'account_setup_incomplete'
+              },
+              ipAddress: req.ip,
+              userAgent: req.get('user-agent')
+            });
+            
+            return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
+          }
+          
+          // Check collaborator password
+          try {
+            const isCollabMatch = await bcrypt.compare(password, collaborator.password);
+            
+            if (isCollabMatch) {
+              // Check if parent user is restricted or deleted
+              if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
+                // Log failed collaborator login due to parent account status
+                await Logs.createLog({
+                  userId: parentUser._id,
+                  userEmail: email,
+                  userName: collaborator.name || email.split('@')[0],
+                  action: 'login',
+                  details: {
+                    method: 'collaborator',
+                    success: false,
+                    reason: 'parent_account_' + parentUser.status
+                  },
+                  ipAddress: req.ip,
+                  userAgent: req.get('user-agent')
+                });
+                
+                return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
+              }
+              
+              // Check collaborator status - only allow active collaborators to login
+              if (collaborator.status !== 'active') {
+                const statusReason = `collaborator_status_${collaborator.status}`;
+                let statusMessage = "Your account is not active. Please contact the account owner for assistance.";
+                
+                if (collaborator.status === 'invited') {
+                  statusMessage = "Your invitation is pending acceptance. Please check your email for instructions.";
+                } else if (collaborator.status === 'restricted') {
+                  statusMessage = "Your access has been restricted. Please contact the account owner for assistance.";
+                } else if (collaborator.status === 'deleted') {
+                  statusMessage = "Your access has been revoked. Please contact the account owner for assistance.";
+                }
+                
+                // Log failed collaborator login due to status
+                await Logs.createLog({
+                  userId: parentUser._id,
+                  userEmail: email,
+                  userName: collaborator.name || email.split('@')[0],
+                  action: 'login',
+                  details: {
+                    method: 'collaborator',
+                    success: false,
+                    reason: statusReason
+                  },
+                  ipAddress: req.ip,
+                  userAgent: req.get('user-agent')
+                });
+                
+                return res.status(403).json({ message: statusMessage });
+              }
+              
+              // Update last login timestamp for parent user
+              parentUser.lastLogin = new Date();
+              await parentUser.save();
+              
+              // Generate JWT with comprehensive user and collaborator info
+              const token = generateUserToken(parentUser, collaborator);
+              
+              // Log successful collaborator login
+              await Logs.createLog({
+                userId: parentUser._id,
+                userEmail: email,
+                userName: collaborator.name || email.split('@')[0],
+                action: 'login',
+                details: {
+                  method: 'collaborator',
+                  success: true,
+                  role: collaborator.role,
+                  parentAccount: parentUser.email
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+              });
+
+              return res.json({ 
+                token, 
+                user: { 
+                  id: parentUser._id, 
+                  email: parentUser.email,
+                  collaborator: {
+                    email: collaborator.email,
+                    role: collaborator.role,
+                    name: collaborator.name || "",
+                    status: collaborator.status
+                  }
+                } 
+              });
+            } else {
+              // Log failed collaborator login due to incorrect password
+              await Logs.createLog({
+                userId: parentUser._id,
+                userEmail: email,
+                userName: collaborator.name || email.split('@')[0],
+                action: 'login',
+                details: {
+                  method: 'collaborator',
+                  success: false,
+                  reason: 'invalid_password'
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+              });
+              
+              return res.status(400).json({ message: "Invalid credentials - incorrect password" });
+            }
+          } catch (bcryptError) {
+            return res.status(400).json({ message: "Authentication error during password verification" });
+          }
+        } else {
+          console.log('Collaborator not found in parent user document');
+        }
+      } else {
+        console.log('No parent user found for collaborator email:', email);
+      }
+      
+      // If we reach here, no collaborator found - proceed with signup
+      console.log(`No collaborator found, creating new account for: ${email}`);
       
       // Check if email exists in subscribers collection
       const subscriber = await Subscriber.findOne({ email });
