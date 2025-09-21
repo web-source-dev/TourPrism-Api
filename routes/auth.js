@@ -73,7 +73,8 @@ passport.use(
       clientID: process.env.MICROSOFT_CLIENT_ID,
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
       callbackURL: "https://tourprism.onrender.com/auth/microsoft/callback",
-      scope: ['user.read']
+      scope: ['user.read'],
+      tenant: 'common' // Allow both personal and organizational accounts
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
