@@ -41,7 +41,9 @@ const LogSchema = new mongoose.Schema({
       'auto_update_process_completed', 'alert_auto_update_created', 'alert_auto_update_suppressed', 'alert_auto_update_enabled',
       'alert_archived', 'alert_archiving_completed',
       // Other
-      'profile_updated', 'summary_viewed', 'summary_generated', 'profile_viewed','notifications_viewed'
+      'profile_updated', 'summary_viewed', 'summary_generated', 'profile_viewed','notifications_viewed',
+      // City search related
+      'city_search_email_subscribed', 'city_search_email_unsubscribed',
     ]
   },
   details: {
