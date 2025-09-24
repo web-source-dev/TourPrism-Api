@@ -948,6 +948,72 @@ router.get(
   }
 );
 
+// Token Verification Route - verifies token against database
+router.get("/verify-token", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    // Verify token signature
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Verify user exists in database and is active
+    const user = await User.findById(decoded.userId).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      return res.status(403).json({ message: "Account is not active" });
+    }
+
+    // If this is a collaborator token, verify collaborator
+    if (decoded.isCollaborator) {
+      const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
+      
+      if (!collaborator || collaborator.status !== 'active') {
+        return res.status(404).json({ message: "Collaborator not found or not active" });
+      }
+      
+      // Return user info with collaborator details
+      return res.json({
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: user.isVerified,
+        isPremium: user.isPremium,
+        role: user.role,
+        status: user.status,
+        lastLogin: user.lastLogin,
+        weeklyForecastSubscribed: user.weeklyForecastSubscribed,
+        weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
+        lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
+        company: user.company,
+        preferences: user.preferences,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        isCollaborator: true,
+        collaborator: {
+          email: collaborator.email,
+          role: collaborator.role,
+          name: collaborator.name,
+          status: collaborator.status
+        }
+      });
+    }
+
+    // Regular user - return full user data
+    res.json(user);
+  } catch (error) {
+    console.error("Token verification error:", error);
+    res.status(401).json({ message: "Invalid token" });
+  }
+});
+
 // User Profile Route
 router.get("/user/profile", async (req, res) => {
   try {

@@ -2,9 +2,9 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 /**
- * Extract and verify JWT token
+ * Extract and verify JWT token against database
  */
-const getTokenData = (req) => {
+const getTokenData = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
 
@@ -12,29 +12,63 @@ const getTokenData = (req) => {
   if (!token) return null;
 
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    // First verify the token signature
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Then verify the user exists in database and is active
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      console.log('Token user not found in database:', decoded.userId);
+      return null;
+    }
+
+    // Check if user is active and not restricted/deleted
+    if (user.status !== 'active') {
+      console.log('User account is not active:', user.status);
+      return null;
+    }
+
+    // For collaborators, verify the collaborator still exists and is active
+    if (decoded.isCollaborator) {
+      const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
+      if (!collaborator || collaborator.status !== 'active') {
+        console.log('Collaborator not found or not active:', decoded.collaboratorEmail);
+        return null;
+      }
+      
+      // Add fresh collaborator data to the decoded token
+      decoded.collaboratorData = collaborator;
+    }
+
+    // Add fresh user data to the decoded token
+    decoded.userData = user;
+    
+    return decoded;
   } catch (err) {
+    console.log('Token verification failed:', err.message);
     return null;
   }
 };
 
 /**
- * Basic authentication - requires valid token
+ * Basic authentication - requires valid token verified against database
  */
 export const authenticate = async (req, res, next) => {
-  const decoded = getTokenData(req);
+  const decoded = await getTokenData(req);
 
   if (!decoded) {
     return res.status(401).json({ message: "Invalid or missing token" });
   }
 
   req.userId = decoded.userId;
+  req.user = decoded.userData; // Add fresh user data
   
   // Add collaborator info to request if present in token
   if (decoded.isCollaborator) {
     req.isCollaborator = true;
     req.collaboratorEmail = decoded.collaboratorEmail;
     req.collaboratorRole = decoded.collaboratorRole;
+    req.collaborator = decoded.collaboratorData; // Add fresh collaborator data
     req.userEmail = decoded.collaboratorEmail;  // Add userEmail for actionLogs
   }
   
@@ -42,18 +76,20 @@ export const authenticate = async (req, res, next) => {
 };
 
 /**
- * Optional authentication - adds req.userId if token is valid
+ * Optional authentication - adds req.userId if token is valid and verified against database
  */
 export const optionalAuth = async (req, res, next) => {
-  const decoded = getTokenData(req);
+  const decoded = await getTokenData(req);
   if (decoded) {
     req.userId = decoded.userId;
+    req.user = decoded.userData; // Add fresh user data
     
     // Add collaborator info to request if present in token
     if (decoded.isCollaborator) {
       req.isCollaborator = true;
       req.collaboratorEmail = decoded.collaboratorEmail;
       req.collaboratorRole = decoded.collaboratorRole;
+      req.collaborator = decoded.collaboratorData; // Add fresh collaborator data
     }
   }
   next();
@@ -69,19 +105,21 @@ export const authenticateRole = (requiredRoles = []) => {
   }
 
   return async (req, res, next) => {
-    const decoded = getTokenData(req);
+    const decoded = await getTokenData(req);
 
     if (!decoded) {
       return res.status(401).json({ message: "Invalid or missing token" });
     }
 
     req.userId = decoded.userId;
+    req.user = decoded.userData; // Add fresh user data
 
     // Handle collaborator authentication
     if (decoded.isCollaborator) {
       req.isCollaborator = true;
       req.collaboratorEmail = decoded.collaboratorEmail;
       req.collaboratorRole = decoded.collaboratorRole;
+      req.collaborator = decoded.collaboratorData; // Add fresh collaborator data
       
       // Check if collaborator role is in required roles
       if (!requiredRoles.includes(decoded.collaboratorRole)) {
@@ -91,15 +129,10 @@ export const authenticateRole = (requiredRoles = []) => {
       return next();
     }
 
-    // Regular user authentication
-    const user = await User.findById(req.userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    // Regular user authentication - user already verified in getTokenData
+    req.userRole = decoded.userData.role;
 
-    req.userRole = user.role;
-
-    if (!requiredRoles.includes(user.role)) {
+    if (!requiredRoles.includes(decoded.userData.role)) {
       return res.status(403).json({ message: "Access denied. Insufficient privileges." });
     }
 
@@ -117,19 +150,21 @@ export const authenticateCollaboratorOrRole = (requiredRoles = []) => {
   }
 
   return async (req, res, next) => {
-    const decoded = getTokenData(req);
+    const decoded = await getTokenData(req);
 
     if (!decoded) {
       return res.status(401).json({ message: "Invalid or missing token" });
     }
 
     req.userId = decoded.userId;
+    req.user = decoded.userData; // Add fresh user data
     
     // Handle collaborator token
     if (decoded.isCollaborator) {
       req.isCollaborator = true;
       req.collaboratorEmail = decoded.collaboratorEmail;
       req.collaboratorRole = decoded.collaboratorRole;
+      req.collaborator = decoded.collaboratorData; // Add fresh collaborator data
       
       // Check if collaborator role is in required roles
       if (requiredRoles.includes(decoded.collaboratorRole)) {
@@ -139,16 +174,11 @@ export const authenticateCollaboratorOrRole = (requiredRoles = []) => {
       return res.status(403).json({ message: "Access denied. Insufficient collaborator privileges." });
     }
 
-    // Regular user token
-    const user = await User.findById(req.userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    req.userRole = user.role;
+    // Regular user token - user already verified in getTokenData
+    req.userRole = decoded.userData.role;
 
     // Check user role
-    if (requiredRoles.includes(user.role)) {
+    if (requiredRoles.includes(decoded.userData.role)) {
       return next();
     }
 
@@ -161,40 +191,32 @@ export const authenticateCollaboratorOrRole = (requiredRoles = []) => {
  * Usage: authenticateSubscription
  */
 export const authenticateSubscription = async (req, res, next) => {
-  const decoded = getTokenData(req);
+  const decoded = await getTokenData(req);
 
   if (!decoded) {
     return res.status(401).json({ message: "Invalid or missing token" });
   }
 
   req.userId = decoded.userId;
+  req.user = decoded.userData; // Add fresh user data
   
   // Collaborators inherit subscription status from the main account
   if (decoded.isCollaborator) {
     req.isCollaborator = true;
     req.collaboratorEmail = decoded.collaboratorEmail;
     req.collaboratorRole = decoded.collaboratorRole;
+    req.collaborator = decoded.collaboratorData; // Add fresh collaborator data
     
-    // Find the parent user to check subscription status
-    const parentUser = await User.findById(req.userId);
-    if (!parentUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    
-    if (!parentUser.isPremium) {
+    // Parent user already verified in getTokenData
+    if (!decoded.userData.isPremium) {
       return res.status(403).json({ message: "Access denied. This feature requires an active subscription." });
     }
     
     return next();
   }
 
-  // Regular user subscription check
-  const user = await User.findById(req.userId);
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  if (!user.isPremium) {
+  // Regular user subscription check - user already verified in getTokenData
+  if (!decoded.userData.isPremium) {
     return res.status(403).json({ message: "Access denied. This feature requires an active subscription." });
   }
 
