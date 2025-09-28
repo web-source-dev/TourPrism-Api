@@ -1,4 +1,5 @@
 import express from 'express';
+import Logger from '../utils/logger.js';
 import { authenticate } from '../middleware/auth.js';
 import {
   getAutomatedAlerts,
@@ -7,7 +8,8 @@ import {
   approveAlert,
   rejectAlert,
   getAutomatedAlertStats,
-  triggerAlertGeneration
+  triggerAlertGeneration,
+  editAutomatedAlert
 } from '../controllers/automatedAlertController.js';
 
 const router = express.Router();
@@ -32,6 +34,9 @@ router.post('/:id/approve', approveAlert);
 
 // Reject single alert
 router.post('/:id/reject', rejectAlert);
+
+// Edit automated alert
+router.put('/:id/edit', editAutomatedAlert);
 
 // Manually trigger alert generation (for testing)
 router.post('/trigger-generation', triggerAlertGeneration);

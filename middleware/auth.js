@@ -1,6 +1,9 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
+import dotenv from "dotenv";
+dotenv.config();
+
 /**
  * Extract and verify JWT token against database
  */
@@ -13,6 +16,8 @@ const getTokenData = async (req) => {
 
   try {
     // First verify the token signature
+    console.log('JWT_SECRET at middleware verification time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
+    console.log('JWT_SECRET length at middleware:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Then verify the user exists in database and is active

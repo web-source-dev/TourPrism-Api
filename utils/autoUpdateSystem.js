@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import Alert from '../models/Alert.js';
-import Logs from '../models/Logs.js';
+import Logger from './logger.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 dotenv.config();
@@ -168,20 +168,12 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       await originalAlert.save();
 
       // Log the update
-      await Logs.createLog({
-        userId: adminUserId || originalAlert.userId,
-        userEmail: adminUserId ? 'system@tourprism.com' : 'tourprism.alerts@gmail.com',
-        userName: adminUserId ? 'Admin System' : 'Auto-Update System',
-        action: 'alert_auto_update_created',
-        details: {
-          originalAlertId: originalAlert._id,
-          updateAlertId: updateAlert._id,
-          reason: updateData.reason,
-          confidence: updateData.confidence,
-          updateSource: adminUserId ? 'admin' : 'auto'
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'Auto-Update System'
+      await Logger.logSystem('alert_auto_update_created', {
+        originalAlertId: originalAlert._id,
+        updateAlertId: updateAlert._id,
+        reason: updateData.reason,
+        confidence: updateData.confidence,
+        updateSource: adminUserId ? 'admin' : 'auto'
       });
 
       return updateAlert;
@@ -261,46 +253,30 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       console.log(`Auto-update process completed: ${updatesCreated} updates created, ${noUpdates} no updates, ${errors} errors`);
 
       // Log summary
-      await Logs.createLog({
-        userId: null,
-        userEmail: 'tourprism.alerts@gmail.com',
-        userName: 'Auto-Update System',
-        action: 'auto_update_process_completed',
-        details: {
-          alertsChecked: alertsToCheck.length,
-          updatesCreated,
-          noUpdates,
-          errors,
-          processStartTime: processStartTime.toISOString(),
-          processEndTime: processEndTime.toISOString(),
-          processDurationMs: processDuration,
-          processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
-          successRate: alertsToCheck.length > 0 ? ((alertsToCheck.length - errors) / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
-          updateRate: alertsToCheck.length > 0 ? (updatesCreated / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
-          updateDetails,
-          errorDetails
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'Auto-Update System'
+      await Logger.logSystem('auto_update_process_completed', {
+        alertsChecked: alertsToCheck.length,
+        updatesCreated,
+        noUpdates,
+        errors,
+        processStartTime: processStartTime.toISOString(),
+        processEndTime: processEndTime.toISOString(),
+        processDurationMs: processDuration,
+        processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+        successRate: alertsToCheck.length > 0 ? ((alertsToCheck.length - errors) / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
+        updateRate: alertsToCheck.length > 0 ? (updatesCreated / alertsToCheck.length * 100).toFixed(2) + '%' : '0%',
+        updateDetails,
+        errorDetails
       });
 
     } catch (error) {
       console.error('Error in auto-update process:', error);
       
       // Log process error
-      await Logs.createLog({
-        userId: null,
-        userEmail: 'tourprism.alerts@gmail.com',
-        userName: 'Auto-Update System',
-        action: 'auto_update_process_completed',
-        details: {
-          error: error.message,
-          processStartTime: processStartTime.toISOString(),
-          processEndTime: new Date().toISOString(),
-          failed: true
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'Auto-Update System'
+      await Logger.logSystem('auto_update_process_failed', {
+        error: error.message,
+        processStartTime: processStartTime.toISOString(),
+        processEndTime: new Date().toISOString(),
+        failed: true
       });
     } finally {
       this.isRunning = false;
@@ -358,17 +334,9 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       await alert.save();
 
       // Log the suppression
-      await Logs.createLog({
-        userId: adminUserId,
-        userEmail: 'tourprism.alerts@gmail.com',
-        userName: 'Admin',
-        action: 'alert_auto_update_suppressed',
-        details: {
-          alertId,
-          reason
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'Admin System'
+      await Logger.logSystem('alert_auto_update_suppressed', {
+        alertId,
+        reason
       });
 
       return { success: true };
@@ -396,16 +364,8 @@ If no update is needed, set needsUpdate to false and provide a brief reason.`;
       await alert.save();
 
       // Log the re-enabling
-      await Logs.createLog({
-        userId: adminUserId,
-        userEmail: 'tourprism.alerts@gmail.com',
-        userName: 'Admin',
-        action: 'alert_auto_update_enabled',
-        details: {
-          alertId
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'Admin System'
+      await Logger.logSystem('alert_auto_update_enabled', {
+        alertId
       });
 
       return { success: true };

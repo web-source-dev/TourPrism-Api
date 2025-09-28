@@ -1,6 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import CompanyNames from '../models/companyNames.js';
 import { authenticate, authenticateCollaboratorOrRole } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
@@ -47,7 +47,7 @@ const generateUserToken = (user, collaborator = null) => {
 
 const router = express.Router();
 
-// Custom middleware to check if user is the account owner or a manager collaborator
+// Custom middleware to check if user is the account owner or a manager/advisor collaborator
 const canEditProfile = async (req, res, next) => {
   try {
     // If it's the account owner, allow access
@@ -55,8 +55,9 @@ const canEditProfile = async (req, res, next) => {
       return next();
     }
     
-    // If it's a collaborator, check if they have manager role
-    if (req.isCollaborator && req.collaboratorRole === 'manager') {
+    // If it's a collaborator, check if they have manager or advisor role
+    const allowedRoles = ['manager', 'DMO Advisor', 'Travel Agent Advisor', 'Tour Operator Advisor', 'Airline Advisor', 'Hotel Advisor'];
+    if (req.isCollaborator && allowedRoles.includes(req.collaboratorRole)) {
       return next();
     }
     
@@ -138,20 +139,10 @@ router.put('/personal-info', authenticate, canEditProfile, async (req, res) => {
         }
       });
       
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'profile_personal_info_updated',
-        details: {
-          changes,
-          isCollaborator: !!req.isCollaborator,
-          collaboratorRole: req.collaboratorRole || null
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'profile_updated', {
+        changes,
+        isCollaborator: !!req.isCollaborator,
+        collaboratorRole: req.collaboratorRole || null
       });
     } catch (error) {
       console.error('Error logging personal info update:', error);
@@ -262,20 +253,10 @@ router.put('/company-info', authenticate, canEditProfile, async (req, res) => {
         }
       });
       
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'profile_company_info_updated',
-        details: {
-          changes,
-          isCollaborator: !!req.isCollaborator,
-          collaboratorRole: req.collaboratorRole || null
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'profile_company_info_updated', {
+        changes,
+        isCollaborator: !!req.isCollaborator,
+        collaboratorRole: req.collaboratorRole || null
       });
     } catch (error) {
       console.error('Error logging company info update:', error);
@@ -426,19 +407,9 @@ router.put('/business-info', authenticate, canEditProfile, async (req, res) => {
     
     // Log business info update
     try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'profile_business_info_updated',
-        details: {
-          isCollaborator: !!req.isCollaborator,
-          collaboratorRole: req.collaboratorRole || null
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'profile_updated', {
+        isCollaborator: !!req.isCollaborator,
+        collaboratorRole: req.collaboratorRole || null
       });
     } catch (error) {
       console.error('Error logging business info update:', error);
@@ -513,8 +484,8 @@ router.post('/collaborators/invite', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Email is required' });
     }
     
-    if (!['viewer', 'manager'].includes(role)) {
-      return res.status(400).json({ message: 'Invalid role. Must be "viewer" or "manager"' });
+    if (!['viewer', 'manager', 'DMO Advisor', 'Travel Agent Advisor', 'Tour Operator Advisor', 'Airline Advisor', 'Hotel Advisor'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role. Must be one of the allowed roles' });
     }
     
     // Find the account owner
@@ -557,20 +528,10 @@ router.post('/collaborators/invite', authenticate, async (req, res) => {
     
     // Log collaborator invitation
     try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'collaborator_invited',
-        details: {
-          collaboratorEmail: email,
-          collaboratorName: name || '',
-          role
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'collaborator_invited', {
+        collaboratorEmail: email,
+        collaboratorName: name || '',
+        role
       });
     } catch (error) {
       console.error('Error logging collaborator invitation:', error);
@@ -661,8 +622,8 @@ router.put('/collaborators/:collaboratorId/role', authenticate, async (req, res)
     const { role } = req.body;
     
     // Validate role
-    if (!['viewer', 'manager'].includes(role)) {
-      return res.status(400).json({ message: 'Invalid role. Must be "viewer" or "manager"' });
+    if (!['viewer', 'manager', 'DMO Advisor', 'Travel Agent Advisor', 'Tour Operator Advisor', 'Airline Advisor', 'Hotel Advisor'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role. Must be one of the allowed roles' });
     }
     
     // Find the account owner
@@ -685,22 +646,12 @@ router.put('/collaborators/:collaboratorId/role', authenticate, async (req, res)
     
     // Log collaborator role update
     try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'collaborator_role_updated',
-        details: {
-          collaboratorId,
-          collaboratorEmail: collaborator.email,
-          collaboratorName: collaborator.name || '',
-          previousRole,
-          newRole: role
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'collaborator_role_updated', {
+        collaboratorId,
+        collaboratorEmail: collaborator.email,
+        collaboratorName: collaborator.name || '',
+        previousRole,
+        newRole: role
       });
     } catch (error) {
       console.error('Error logging collaborator role update:', error);
@@ -790,22 +741,12 @@ router.delete('/collaborators/:collaboratorId', authenticate, async (req, res) =
     
     // Log collaborator removal
     try {
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: 'collaborator_deleted',
-        details: {
-          collaboratorId,
-          collaboratorEmail: collaboratorInfo.email,
-          collaboratorName: collaboratorInfo.name,
-          role: collaboratorInfo.role,
-          status: collaboratorInfo.status
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'collaborator_deleted', {
+        collaboratorId,
+        collaboratorEmail: collaboratorInfo.email,
+        collaboratorName: collaboratorInfo.name,
+        role: collaboratorInfo.role,
+        status: collaboratorInfo.status
       });
     } catch (error) {
       console.error('Error logging collaborator deletion:', error);

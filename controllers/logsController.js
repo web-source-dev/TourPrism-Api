@@ -1,5 +1,6 @@
 import Logs from '../models/Logs.js';
 import User from '../models/User.js';
+import Logger from '../utils/logger.js';
 
 // Get all logs with pagination and filtering
 export const getAllLogs = async (req, res) => {
@@ -66,6 +67,13 @@ export const getAllLogs = async (req, res) => {
     // Get total count for pagination
     const total = await Logs.countDocuments(query);
 
+    // Log the action
+    await Logger.logCRUD('list', req, 'System logs', null, {
+      logCount: logs.length,
+      totalCount: total,
+      filters: { action, userId, userEmail, startDate, endDate }
+    });
+
     // Return paginated results
     res.json({
       logs,
@@ -108,6 +116,12 @@ export const getUserLogs = async (req, res) => {
 
     // Get total count for pagination
     const total = await Logs.countDocuments({ userId });
+
+    // Log the action
+    await Logger.logCRUD('list', req, 'User logs', userId, {
+      logCount: logs.length,
+      totalCount: total
+    });
 
     // Return paginated results
     res.json({
@@ -168,6 +182,13 @@ export const getActivitySummary = async (req, res) => {
     ]);
 
     const activeUsers = activeUserCount.length > 0 ? activeUserCount[0].activeUsers : 0;
+
+    // Log the action
+    await Logger.logCRUD('view', req, 'Activity summary', null, {
+      activityTypes: activitySummary.length,
+      totalUsers,
+      activeUsers
+    });
 
     res.json({
       activitySummary,
@@ -234,6 +255,12 @@ export const getMostActiveUsers = async (req, res) => {
       };
     });
 
+    // Log the action
+    await Logger.logCRUD('view', req, 'Most active users', null, {
+      userCount: enrichedUserActivity.length,
+      limit: limitNum
+    });
+
     res.json(enrichedUserActivity);
   } catch (error) {
     console.error('Error fetching most active users:', error);
@@ -261,6 +288,13 @@ export const addLog = async (req, res) => {
       details,
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
+    });
+
+    // Log the action
+    await Logger.logCRUD('create', req, 'Manual log entry', log._id, {
+      action,
+      userId,
+      userEmail
     });
 
     res.status(201).json({ message: 'Log created', log });

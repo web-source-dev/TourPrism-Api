@@ -5,7 +5,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as MicrosoftStrategy } from "passport-microsoft";
 import User from "../models/User.js";
-import Logs from "../models/Logs.js";
+import Logger from "../utils/logger.js";
 import { generateOTP } from "../utils/emailService.js";
 import sendVerificationEmail from "../utils/emailTemplates/verification.js";
 import dotenv from "dotenv";
@@ -45,6 +45,8 @@ const generateUserToken = (user, collaborator = null) => {
     tokenPayload.isCollaborator = false;
   }
 
+  console.log('JWT_SECRET at generation time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
+  console.log('JWT_SECRET length at generation:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
   return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
     expiresIn: "24h",
   });
@@ -70,29 +72,15 @@ passport.use(
           });
           
           // Log new user signup via Google
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: profile.displayName || user.email.split('@')[0],
-            action: 'signup',
-            details: {
-              method: 'google',
-              signupCompleted: true
-            }
+          await Logger.log(req, 'signup', {
+            method: 'google',
+            signupCompleted: true
           });
         } else {
           // Log Google login
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: user.firstName && user.lastName ? 
-              `${user.firstName} ${user.lastName}` : 
-              (user.firstName || user.email.split('@')[0]),
-            action: 'login',
-            details: {
-              method: 'google',
-              success: true
-            }
+          await Logger.log(req, 'login', {
+            method: 'google',
+            success: true
           });
         }
         return done(null, user);
@@ -123,29 +111,15 @@ passport.use(
           });
           
           // Log new user signup via Microsoft
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: profile.displayName || user.email.split('@')[0],
-            action: 'signup',
-            details: {
-              method: 'microsoft',
-              signupCompleted: true
-            }
+          await Logger.log(req, 'signup', {
+            method: 'microsoft',
+            signupCompleted: true
           });
         } else {
           // Log Microsoft login
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: user.firstName && user.lastName ? 
-              `${user.firstName} ${user.lastName}` : 
-              (user.firstName || user.email.split('@')[0]),
-            action: 'login',
-            details: {
-              method: 'microsoft',
-              success: true
-            }
+          await Logger.log(req, 'login', {
+            method: 'microsoft',
+            success: true
           });
         }
         return done(null, user);
@@ -238,20 +212,10 @@ router.post("/register", async (req, res) => {
     await sendVerificationEmail(email, otp);
     
     // Log signup
-    await Logs.createLog({
-      userId: user._id,
-      userEmail: email,
-      userName: userData.firstName && userData.lastName ? 
-        `${userData.firstName} ${userData.lastName}` : 
-        (userData.firstName || email.split('@')[0]),
-      action: 'signup',
-      details: {
-        method: 'email',
-        signupCompleted: false,
-        awaitingVerification: true
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'signup', {
+      method: 'email',
+      signupCompleted: false,
+      awaitingVerification: true
     });
 
     res.status(201).json({ 
@@ -290,19 +254,9 @@ router.post("/verify-email", async (req, res) => {
     const token = generateUserToken(user);
     
     // Log email verification
-    await Logs.createLog({
-      userId: user._id,
-      userEmail: user.email,
-      userName: user.firstName && user.lastName ? 
-        `${user.firstName} ${user.lastName}` : 
-        (user.firstName || user.email.split('@')[0]),
-      action: 'email_verified',
-      details: {
-        method: 'otp',
-        signupCompleted: true
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'email_verified', {
+      method: 'otp',
+      signupCompleted: true
     });
 
     res.json({ 
@@ -446,18 +400,8 @@ router.post("/forgot-password", async (req, res) => {
     }
     
     // Log password reset request
-    await Logs.createLog({
-      userId: user._id,
-      userEmail: user.email,
-      userName: user.firstName && user.lastName ? 
-        `${user.firstName} ${user.lastName}` : 
-        (user.firstName || user.email.split('@')[0]),
-      action: 'password_reset',
-      details: {
-        stage: 'requested'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'password_reset', {
+      stage: 'requested'
     });
 
     res.json({ 
@@ -513,18 +457,8 @@ router.post("/reset-password", async (req, res) => {
     await user.save();
     
     // Log password reset completion
-    await Logs.createLog({
-      userId: user._id,
-      userEmail: user.email,
-      userName: user.firstName && user.lastName ? 
-        `${user.firstName} ${user.lastName}` : 
-        (user.firstName || user.email.split('@')[0]),
-      action: 'password_reset',
-      details: {
-        stage: 'completed'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'password_reset', {
+      stage: 'completed'
     });
 
     res.json({ message: "Password reset successful" });
@@ -554,20 +488,10 @@ router.post("/login", async (req, res) => {
       // Check if user is restricted or deleted
       if (user.status === 'restricted') {
         // Log failed login attempt due to restriction
-        await Logs.createLog({
-          userId: user._id,
-          userEmail: user.email,
-          userName: user.firstName && user.lastName ? 
-            `${user.firstName} ${user.lastName}` : 
-            (user.firstName || user.email.split('@')[0]),
-          action: 'login',
-          details: {
-            method: 'email',
-            success: false,
-            reason: 'account_restricted'
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'login', {
+          method: 'email',
+          success: false,
+          reason: 'account_restricted'
         });
         
         return res.status(403).json({ message: "Your account has been restricted. Please contact support for assistance." });
@@ -575,20 +499,10 @@ router.post("/login", async (req, res) => {
       
       if (user.status === 'deleted') {
         // Log failed login attempt due to deletion
-        await Logs.createLog({
-          userId: user._id,
-          userEmail: user.email,
-          userName: user.firstName && user.lastName ? 
-            `${user.firstName} ${user.lastName}` : 
-            (user.firstName || user.email.split('@')[0]),
-          action: 'login',
-          details: {
-            method: 'email',
-            success: false,
-            reason: 'account_deleted'
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'login', {
+          method: 'email',
+          success: false,
+          reason: 'account_deleted'
         });
         
         return res.status(403).json({ message: "Your account has been deleted. Please contact support for assistance." });
@@ -610,20 +524,10 @@ router.post("/login", async (req, res) => {
           await sendVerificationEmail(email, otp);
           
           // Log login attempt requiring verification
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: user.firstName && user.lastName ? 
-              `${user.firstName} ${user.lastName}` : 
-              (user.firstName || user.email.split('@')[0]),
-            action: 'login',
-            details: {
-              method: 'email',
-              success: false,
-              reason: 'needs_verification'
-            },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
+          await Logger.log(req, 'login', {
+            method: 'email',
+            success: false,
+            reason: 'needs_verification'
           });
 
           return res.status(200).json({
@@ -641,40 +545,20 @@ router.post("/login", async (req, res) => {
         const token = generateUserToken(user);
         
         // Log successful login
-        await Logs.createLog({
-          userId: user._id,
-          userEmail: user.email,
-          userName: user.firstName && user.lastName ? 
-            `${user.firstName} ${user.lastName}` : 
-            (user.firstName || user.email.split('@')[0]),
-          action: 'login',
-          details: {
-            method: 'email',
-            success: true,
-            role: user.role
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'login', {
+          method: 'email',
+          success: true,
+          role: user.role
         });
 
         return res.json({ token, user: { id: user._id, email: user.email, role: user.role } });
       }
       
       // Log failed login due to incorrect password
-      await Logs.createLog({
-        userId: user._id,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email.split('@')[0]),
-        action: 'login',
-        details: {
-          method: 'email',
-          success: false,
-          reason: 'invalid_password'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'login', {
+        method: 'email',
+        success: false,
+        reason: 'invalid_password'
       });
     }
     
@@ -694,18 +578,10 @@ router.post("/login", async (req, res) => {
         // Modified password validation check - just check if the password field exists at all
         if (!collaborator.password) {
           // Log collaborator account not set up
-          await Logs.createLog({
-            userId: parentUser._id,
-            userEmail: email,
-            userName: collaborator.name || email.split('@')[0],
-            action: 'login',
-            details: {
-              method: 'collaborator',
-              success: false,
-              reason: 'account_setup_incomplete'
-            },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
+          await Logger.log(req, 'login', {
+            method: 'collaborator',
+            success: false,
+            reason: 'account_setup_incomplete'
           });
           
           return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
@@ -719,18 +595,10 @@ router.post("/login", async (req, res) => {
             // Check if parent user is restricted or deleted
             if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
               // Log failed collaborator login due to parent account status
-              await Logs.createLog({
-                userId: parentUser._id,
-                userEmail: email,
-                userName: collaborator.name || email.split('@')[0],
-                action: 'login',
-                details: {
-                  method: 'collaborator',
-                  success: false,
-                  reason: 'parent_account_' + parentUser.status
-                },
-                ipAddress: req.ip,
-                userAgent: req.get('user-agent')
+              await Logger.log(req, 'login', {
+                method: 'collaborator',
+                success: false,
+                reason: 'parent_account_' + parentUser.status
               });
               
               return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
@@ -750,18 +618,10 @@ router.post("/login", async (req, res) => {
               }
               
               // Log failed collaborator login due to status
-              await Logs.createLog({
-                userId: parentUser._id,
-                userEmail: email,
-                userName: collaborator.name || email.split('@')[0],
-                action: 'login',
-                details: {
-                  method: 'collaborator',
-                  success: false,
-                  reason: statusReason
-                },
-                ipAddress: req.ip,
-                userAgent: req.get('user-agent')
+              await Logger.log(req, 'login', {
+                method: 'collaborator',
+                success: false,
+                reason: statusReason
               });
               
               return res.status(403).json({ message: statusMessage });
@@ -775,19 +635,11 @@ router.post("/login", async (req, res) => {
             const token = generateUserToken(parentUser, collaborator);
             
             // Log successful collaborator login
-            await Logs.createLog({
-              userId: parentUser._id,
-              userEmail: email,
-              userName: collaborator.name || email.split('@')[0],
-              action: 'login',
-              details: {
-                method: 'collaborator',
-                success: true,
-                role: collaborator.role,
-                parentAccount: parentUser.email
-              },
-              ipAddress: req.ip,
-              userAgent: req.get('user-agent')
+            await Logger.log(req, 'login', {
+              method: 'collaborator',
+              success: true,
+              role: collaborator.role,
+              parentAccount: parentUser.email
             });
 
             return res.json({ 
@@ -805,18 +657,10 @@ router.post("/login", async (req, res) => {
             });
           } else {
             // Log failed collaborator login due to incorrect password
-            await Logs.createLog({
-              userId: parentUser._id,
-              userEmail: email,
-              userName: collaborator.name || email.split('@')[0],
-              action: 'login',
-              details: {
-                method: 'collaborator',
-                success: false,
-                reason: 'invalid_password'
-              },
-              ipAddress: req.ip,
-              userAgent: req.get('user-agent')
+            await Logger.log(req, 'login', {
+              method: 'collaborator',
+              success: false,
+              reason: 'invalid_password'
             });
             
             return res.status(400).json({ message: "Invalid credentials - incorrect password" });
@@ -832,16 +676,10 @@ router.post("/login", async (req, res) => {
     }
 
     // Log failed login attempt for non-existent user
-    await Logs.createLog({
-      userEmail: email,
-      action: 'login',
-      details: {
-        method: 'email',
-        success: false,
-        reason: 'user_not_found'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'login', {
+      method: 'email',
+      success: false,
+      reason: 'user_not_found'
     });
 
     // If we get here, neither user nor collaborator credentials matched
@@ -957,6 +795,8 @@ router.get("/verify-token", async (req, res) => {
     }
 
     // Verify token signature
+    console.log('JWT_SECRET at verification time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
+    console.log('JWT_SECRET length:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Verify user exists in database and is active
@@ -1165,20 +1005,10 @@ router.post("/unified-auth", async (req, res) => {
           await sendVerificationEmail(email, otp);
           
           // Log login attempt requiring verification
-          await Logs.createLog({
-            userId: user._id,
-            userEmail: user.email,
-            userName: user.firstName && user.lastName ? 
-              `${user.firstName} ${user.lastName}` : 
-              (user.firstName || user.email.split('@')[0]),
-            action: 'login',
-            details: {
-              method: 'email',
-              success: false,
-              reason: 'needs_verification'
-            },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
+          await Logger.log(req, 'login', {
+            method: 'email',
+            success: false,
+            reason: 'needs_verification'
           });
 
           return res.status(200).json({
@@ -1196,20 +1026,10 @@ router.post("/unified-auth", async (req, res) => {
         const token = generateUserToken(user);
         
         // Log successful login
-        await Logs.createLog({
-          userId: user._id,
-          userEmail: user.email,
-          userName: user.firstName && user.lastName ? 
-            `${user.firstName} ${user.lastName}` : 
-            (user.firstName || user.email.split('@')[0]),
-          action: 'login',
-          details: {
-            method: 'email',
-            success: true,
-            role: user.role
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'login', {
+          method: 'email',
+          success: true,
+          role: user.role
         });
 
         return res.json({ 
@@ -1223,20 +1043,10 @@ router.post("/unified-auth", async (req, res) => {
         });
       } else {
         // Log failed login due to incorrect password
-        await Logs.createLog({
-          userId: user._id,
-          userEmail: user.email,
-          userName: user.firstName && user.lastName ? 
-            `${user.firstName} ${user.lastName}` : 
-            (user.firstName || user.email.split('@')[0]),
-          action: 'login',
-          details: {
-            method: 'email',
-            success: false,
-            reason: 'invalid_password'
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'login', {
+          method: 'email',
+          success: false,
+          reason: 'invalid_password'
         });
         
         // Password didn't match - check for collaborator login
@@ -1259,18 +1069,10 @@ router.post("/unified-auth", async (req, res) => {
             // Check if collaborator has password set up
             if (!collaborator.password) {
               // Log collaborator account not set up
-              await Logs.createLog({
-                userId: parentUser._id,
-                userEmail: email,
-                userName: collaborator.name || email.split('@')[0],
-                action: 'login',
-                details: {
-                  method: 'collaborator',
-                  success: false,
-                  reason: 'account_setup_incomplete'
-                },
-                ipAddress: req.ip,
-                userAgent: req.get('user-agent')
+              await Logger.log(req, 'login', {
+                method: 'collaborator',
+                success: false,
+                reason: 'account_setup_incomplete'
               });
               
               return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
@@ -1284,18 +1086,10 @@ router.post("/unified-auth", async (req, res) => {
                 // Check if parent user is restricted or deleted
                 if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
                   // Log failed collaborator login due to parent account status
-                  await Logs.createLog({
-                    userId: parentUser._id,
-                    userEmail: email,
-                    userName: collaborator.name || email.split('@')[0],
-                    action: 'login',
-                    details: {
-                      method: 'collaborator',
-                      success: false,
-                      reason: 'parent_account_' + parentUser.status
-                    },
-                    ipAddress: req.ip,
-                    userAgent: req.get('user-agent')
+                  await Logger.log(req, 'login', {
+                    method: 'collaborator',
+                    success: false,
+                    reason: 'parent_account_' + parentUser.status
                   });
                   
                   return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
@@ -1315,18 +1109,10 @@ router.post("/unified-auth", async (req, res) => {
                   }
                   
                   // Log failed collaborator login due to status
-                  await Logs.createLog({
-                    userId: parentUser._id,
-                    userEmail: email,
-                    userName: collaborator.name || email.split('@')[0],
-                    action: 'login',
-                    details: {
-                      method: 'collaborator',
-                      success: false,
-                      reason: statusReason
-                    },
-                    ipAddress: req.ip,
-                    userAgent: req.get('user-agent')
+                  await Logger.log(req, 'login', {
+                    method: 'collaborator',
+                    success: false,
+                    reason: statusReason
                   });
                   
                   return res.status(403).json({ message: statusMessage });
@@ -1340,19 +1126,11 @@ router.post("/unified-auth", async (req, res) => {
                 const token = generateUserToken(parentUser, collaborator);
                 
                 // Log successful collaborator login
-                await Logs.createLog({
-                  userId: parentUser._id,
-                  userEmail: email,
-                  userName: collaborator.name || email.split('@')[0],
-                  action: 'login',
-                  details: {
-                    method: 'collaborator',
-                    success: true,
-                    role: collaborator.role,
-                    parentAccount: parentUser.email
-                  },
-                  ipAddress: req.ip,
-                  userAgent: req.get('user-agent')
+                await Logger.log(req, 'login', {
+                  method: 'collaborator',
+                  success: true,
+                  role: collaborator.role,
+                  parentAccount: parentUser.email
                 });
 
                 return res.json({ 
@@ -1370,18 +1148,10 @@ router.post("/unified-auth", async (req, res) => {
                 });
               } else {
                 // Log failed collaborator login due to incorrect password
-                await Logs.createLog({
-                  userId: parentUser._id,
-                  userEmail: email,
-                  userName: collaborator.name || email.split('@')[0],
-                  action: 'login',
-                  details: {
-                    method: 'collaborator',
-                    success: false,
-                    reason: 'invalid_password'
-                  },
-                  ipAddress: req.ip,
-                  userAgent: req.get('user-agent')
+                await Logger.log(req, 'login', {
+                  method: 'collaborator',
+                  success: false,
+                  reason: 'invalid_password'
                 });
                 
                 return res.status(400).json({ message: "Invalid credentials - incorrect password" });
@@ -1420,18 +1190,10 @@ router.post("/unified-auth", async (req, res) => {
           // Check if collaborator has password set up
           if (!collaborator.password) {
             // Log collaborator account not set up
-            await Logs.createLog({
-              userId: parentUser._id,
-              userEmail: email,
-              userName: collaborator.name || email.split('@')[0],
-              action: 'login',
-              details: {
-                method: 'collaborator',
-                success: false,
-                reason: 'account_setup_incomplete'
-              },
-              ipAddress: req.ip,
-              userAgent: req.get('user-agent')
+            await Logger.log(req, 'login', {
+              method: 'collaborator',
+              success: false,
+              reason: 'account_setup_incomplete'
             });
             
             return res.status(400).json({ message: "Please complete your account setup using the invitation link sent to your email." });
@@ -1445,18 +1207,10 @@ router.post("/unified-auth", async (req, res) => {
               // Check if parent user is restricted or deleted
               if (parentUser.status === 'restricted' || parentUser.status === 'deleted') {
                 // Log failed collaborator login due to parent account status
-                await Logs.createLog({
-                  userId: parentUser._id,
-                  userEmail: email,
-                  userName: collaborator.name || email.split('@')[0],
-                  action: 'login',
-                  details: {
-                    method: 'collaborator',
-                    success: false,
-                    reason: 'parent_account_' + parentUser.status
-                  },
-                  ipAddress: req.ip,
-                  userAgent: req.get('user-agent')
+                await Logger.log(req, 'login', {
+                  method: 'collaborator',
+                  success: false,
+                  reason: 'parent_account_' + parentUser.status
                 });
                 
                 return res.status(403).json({ message: "This account has been restricted or deleted. Please contact the account owner for assistance." });
@@ -1476,18 +1230,10 @@ router.post("/unified-auth", async (req, res) => {
                 }
                 
                 // Log failed collaborator login due to status
-                await Logs.createLog({
-                  userId: parentUser._id,
-                  userEmail: email,
-                  userName: collaborator.name || email.split('@')[0],
-                  action: 'login',
-                  details: {
-                    method: 'collaborator',
-                    success: false,
-                    reason: statusReason
-                  },
-                  ipAddress: req.ip,
-                  userAgent: req.get('user-agent')
+                await Logger.log(req, 'login', {
+                  method: 'collaborator',
+                  success: false,
+                  reason: statusReason
                 });
                 
                 return res.status(403).json({ message: statusMessage });
@@ -1501,19 +1247,11 @@ router.post("/unified-auth", async (req, res) => {
               const token = generateUserToken(parentUser, collaborator);
               
               // Log successful collaborator login
-              await Logs.createLog({
-                userId: parentUser._id,
-                userEmail: email,
-                userName: collaborator.name || email.split('@')[0],
-                action: 'login',
-                details: {
-                  method: 'collaborator',
-                  success: true,
-                  role: collaborator.role,
-                  parentAccount: parentUser.email
-                },
-                ipAddress: req.ip,
-                userAgent: req.get('user-agent')
+              await Logger.log(req, 'login', {
+                method: 'collaborator',
+                success: true,
+                role: collaborator.role,
+                parentAccount: parentUser.email
               });
 
               return res.json({ 
@@ -1531,18 +1269,10 @@ router.post("/unified-auth", async (req, res) => {
               });
             } else {
               // Log failed collaborator login due to incorrect password
-              await Logs.createLog({
-                userId: parentUser._id,
-                userEmail: email,
-                userName: collaborator.name || email.split('@')[0],
-                action: 'login',
-                details: {
-                  method: 'collaborator',
-                  success: false,
-                  reason: 'invalid_password'
-                },
-                ipAddress: req.ip,
-                userAgent: req.get('user-agent')
+              await Logger.log(req, 'login', {
+                method: 'collaborator',
+                success: false,
+                reason: 'invalid_password'
               });
               
               return res.status(400).json({ message: "Invalid credentials - incorrect password" });
@@ -1622,20 +1352,10 @@ router.post("/unified-auth", async (req, res) => {
       await sendVerificationEmail(email, otp);
       
       // Log signup
-      await Logs.createLog({
-        userId: user._id,
-        userEmail: email,
-        userName: userData.firstName && userData.lastName ? 
-          `${userData.firstName} ${userData.lastName}` : 
-          (userData.firstName || email.split('@')[0]),
-        action: 'signup',
-        details: {
-          method: 'email',
-          signupCompleted: false,
-          awaitingVerification: true
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'signup', {
+        method: 'email',
+        signupCompleted: false,
+        awaitingVerification: true
       });
 
       return res.status(200).json({ 

@@ -1,4 +1,5 @@
 import brevoAnalyticsService from '../utils/brevoAnalyticsService.js';
+import Logger from '../utils/logger.js';
 
 /**
  * Get dashboard overview statistics
@@ -17,6 +18,11 @@ export const getDashboardStats = async (req, res) => {
       end || endDate
     );
     
+    // Log the action
+    await Logger.logCRUD('view', req, 'Email analytics dashboard', null, {
+      dateRange: { start: start || startDate, end: end || endDate }
+    });
+
     res.json(stats);
   } catch (error) {
     console.error('Error fetching email dashboard stats:', error);
@@ -33,6 +39,11 @@ export const getDashboardStats = async (req, res) => {
 export const getEmailTemplates = async (req, res) => {
   try {
     const templates = await brevoAnalyticsService.getEmailTemplates();
+    // Log the action
+    await Logger.logCRUD('list', req, 'Email templates', null, {
+      templateCount: templates.length
+    });
+
     res.json(templates);
   } catch (error) {
     console.error('Error fetching email templates:', error);
@@ -58,6 +69,12 @@ export const getEmailEvents = async (req, res) => {
       limit: limit ? parseInt(limit) : 50
     });
     
+    // Log the action
+    await Logger.logCRUD('list', req, 'Email events', null, {
+      eventCount: events.length,
+      filters: { startDate, endDate, email, event }
+    });
+
     res.json(events);
   } catch (error) {
     console.error('Error fetching email events:', error);
@@ -80,6 +97,11 @@ export const getTemplateStats = async (req, res) => {
     }
     
     const stats = await brevoAnalyticsService.getTemplateStats(parseInt(templateId));
+    // Log the action
+    await Logger.logCRUD('view', req, 'Email template statistics', templateId, {
+      templateId: parseInt(templateId)
+    });
+
     res.json(stats);
   } catch (error) {
     console.error('Error fetching template statistics:', error);
@@ -102,6 +124,11 @@ export const getTransactionalEmailStats = async (req, res) => {
     const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days ago
     
     const stats = await brevoAnalyticsService.getTransactionalEmailStats(start, end);
+    // Log the action
+    await Logger.logCRUD('view', req, 'Transactional email statistics', null, {
+      dateRange: { start, end }
+    });
+
     res.json(stats);
   } catch (error) {
     console.error('Error fetching transactional email statistics:', error);

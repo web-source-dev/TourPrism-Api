@@ -3,7 +3,7 @@ import { authenticate } from "../middleware/auth.js";
 import Alert from "../models/Alert.js";
 import Summary from "../models/Summary.js";
 import User from "../models/User.js";
-import Logs from "../models/Logs.js";
+import Logger from "../utils/logger.js";
 import { generatePdf, generateSummaryHTML } from "../utils/pdfGenerator.js";
 const router = express.Router();
 
@@ -138,27 +138,19 @@ router.post("/generate", authenticate, async (req, res) => {
       // Get user info for better logging
       const user = await User.findById(userId).select('firstName lastName email');
       
-      await Logs.createLog({
-        userId: userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'summary_generation_started',
-        details: {
-          title,
-          summaryType,
-          filters: {
-            startDate,
-            endDate,
-            locationCount: locations?.length,
-            alertTypes,
-            alertCategory,
-            impact
-          },
-          generatePDF,
-          autoSave
+      await Logger.log(req, 'summary_generated', {
+        title,
+        summaryType,
+        filters: {
+          startDate,
+          endDate,
+          locationCount: locations?.length,
+          alertTypes,
+          alertCategory,
+          impact
         },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+        generatePDF,
+        autoSave
       });
     } catch (error) {
       console.error('Error logging summary generation start:', error);
@@ -359,18 +351,10 @@ router.post("/generate", authenticate, async (req, res) => {
         
         // Log summary saved
         try {
-          await Logs.createLog({
-            userId: userId,
-            userEmail: req.userEmail || user?.email,
-            userName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.email?.split('@')[0] || 'Unknown'),
-            action: 'summary_saved',
-            details: {
-              summaryId: savedSummaryId,
-              title,
-              alertCount: alerts.length
-            },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
+          await Logger.log(req, 'summary_saved', {
+            summaryId: savedSummaryId,
+            title,
+            alertCount: alerts.length
           });
         } catch (error) {
           console.error('Error logging summary save:', error);
@@ -384,20 +368,12 @@ router.post("/generate", authenticate, async (req, res) => {
     
     // Log summary generation completed
     try {
-      await Logs.createLog({
-        userId: userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.email?.split('@')[0] || 'Unknown'),
-        action: 'summary_generation_completed',
-        details: {
-          title,
-          alertCount: alerts.length,
-          duplicateGroups: duplicateGroups.length,
-          hasPdf: !!pdfUrl,
-          savedSummaryId
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'summary_generated', {
+        title,
+        alertCount: alerts.length,
+        duplicateGroups: duplicateGroups.length,
+        hasPdf: !!pdfUrl,
+        savedSummaryId
       });
     } catch (error) {
       console.error('Error logging summary generation completion:', error);
@@ -510,17 +486,9 @@ router.delete("/:id", authenticate, async (req, res) => {
     try {
       const user = await User.findById(userId).select('firstName lastName email');
       
-      await Logs.createLog({
-        userId: userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'summary_deleted',
-        details: {
-          summaryId,
-          title: summary.title
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'summary_deleted', {
+        summaryId,
+        title: summary.title
       });
     } catch (error) {
       console.error('Error logging summary deletion:', error);

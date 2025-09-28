@@ -1,6 +1,6 @@
 import CitySearch from "../models/CitySearch.js";
 import User from "../models/User.js";
-import Logs from "../models/Logs.js";
+import Logger from "../utils/logger.js";
 
 // Store city search email
 export const storeCitySearchEmail = async (req, res) => {
@@ -77,27 +77,14 @@ export const storeCitySearchEmail = async (req, res) => {
     await citySearch.save();
 
     // Log the action
-    try {
-      await Logs.createLog({
-        userId: userId,
-        userEmail: userEmail || email,
-        userName: userName || email.split('@')[0],
-        action: 'city_search_subscription',
-        details: {
-          email: email.toLowerCase().trim(),
-          searchedCity: searchedCity.trim(),
-          cityName: cityName?.trim(),
-          latitude: latitude ? parseFloat(latitude) : null,
-          longitude: longitude ? parseFloat(longitude) : null,
-          isAuthenticated
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-      });
-    } catch (logError) {
-      console.error('Error logging city search subscription:', logError);
-      // Continue execution even if logging fails
-    }
+    await Logger.logCRUD('create', req, 'City search subscription', citySearch._id, {
+      email: email.toLowerCase().trim(),
+      searchedCity: searchedCity.trim(),
+      cityName: cityName?.trim(),
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      isAuthenticated
+    });
 
     res.status(201).json({
       message: "Successfully subscribed to notifications for this city search",
@@ -147,6 +134,13 @@ export const getCitySearchSubscriptions = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .lean();
+
+    // Log the action
+    await Logger.logCRUD('list', req, 'City search subscriptions', null, {
+      subscriptionCount: subscriptions.length,
+      totalCount: total,
+      filters: { email, searchedCity }
+    });
 
     res.json({
       subscriptions,

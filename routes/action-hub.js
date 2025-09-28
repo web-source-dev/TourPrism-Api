@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate, authenticateRole } from '../middleware/auth.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import {
   getActionHubAlerts,
   getActionHubAlertById,
@@ -82,16 +82,9 @@ router.post('/:id/notes', authenticate, async (req, res, next) => {
   
   try {
     // Log note addition
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_note_added',
-      details: { 
-        actionHubId: id,
-        noteLength: content?.length || 0
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'action_hub_note_added', { 
+      actionHubId: id,
+      noteLength: content?.length || 0
     });
   } catch (error) {
     console.error('Error logging note addition:', error);
@@ -113,16 +106,9 @@ router.post('/:id/guests', authenticate, async (req, res, next) => {
   
   try {
     // Log guest addition
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_guest_added',
-      details: { 
-        actionHubId: id,
-        guestCount: guests?.length || 0
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'action_hub_guest_added', { 
+      actionHubId: id,
+      guestCount: guests?.length || 0
     });
   } catch (error) {
     console.error('Error logging guest addition:', error);
@@ -144,18 +130,11 @@ router.post('/:id/notify', authenticate, async (req, res, next) => {
   
   try {
     // Log notification sending
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_notification_sent',
-      details: { 
-        actionHubId: id,
-        recipientType: 'guests',
-        recipientCount: guestIds?.length || 'all',
-        messageLength: message?.length || 0
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'action_hub_notification_sent', { 
+      actionHubId: id,
+      recipientType: 'guests',
+      recipientCount: guestIds?.length || 'all',
+      messageLength: message?.length || 0
     });
   } catch (error) {
     console.error('Error logging notification sending:', error);
@@ -177,17 +156,10 @@ router.post('/:id/notify-team', authenticate, async (req, res, next) => {
   
   try {
     // Log team notification sending
-    await Logs.createLog({
-      userId: req.userId,
-      userEmail: req.userEmail,
-      action: 'action_hub_notification_sent',
-      details: { 
-        actionHubId: id,
-        recipientType: managersOnly ? 'managers' : 'team',
-        messageLength: message?.length || 0
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.log(req, 'action_hub_notification_sent', { 
+      actionHubId: id,
+      recipientType: managersOnly ? 'managers' : 'team',
+      messageLength: message?.length || 0
     });
   } catch (error) {
     console.error('Error logging team notification sending:', error);

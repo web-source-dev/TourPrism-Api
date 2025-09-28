@@ -1,5 +1,5 @@
 import Alert from '../models/Alert.js';
-import Logs from '../models/Logs.js';
+import Logger from './logger.js';
 
 // Socket.io instance will be set externally to avoid circular imports
 let ioInstance = null;
@@ -88,25 +88,16 @@ export const archiveExpiredAlerts = async () => {
 
     if(result.archived > 0) {
     // Log the archiving process
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Alert Archiver System',
-      action: 'alert_archiving_completed',
-      details: {
-        totalAlertsFound: expiredAlerts.length,
-        alertsArchived: result.archived,
-        errors: result.errors.length,
-        processStartTime: processStartTime.toISOString(),
-        processEndTime: processEndTime.toISOString(),
-        processDurationMs: processDuration,
-        processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
-        successRate: expiredAlerts.length > 0 ? ((expiredAlerts.length - result.errors.length) / expiredAlerts.length * 100).toFixed(2) + '%' : '0%',
-        archivedAlerts: result.archivedAlerts,
-        errorDetails: result.errors
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Alert Archiver System'
+    await Logger.logSystem('alert_archiving_completed', {
+      totalAlertsFound: expiredAlerts.length,
+      alertsArchived: result.archived,
+      errors: result.errors.length,
+      processStartTime: processStartTime.toISOString(),
+      processEndTime: processEndTime.toISOString(),
+      processDurationMs: processDuration,
+      processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+      successRate: expiredAlerts.length > 0 ? ((expiredAlerts.length - result.errors.length) / expiredAlerts.length * 100).toFixed(2) + '%' : '0%',
+      errorDetails: result.errors
     });
   }
 
@@ -119,19 +110,11 @@ export const archiveExpiredAlerts = async () => {
     });
     
     // Log the error
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Alert Archiver System',
-      action: 'alert_archiving_completed',
-      details: {
-        error: error.message,
-        processStartTime: processStartTime.toISOString(),
-        processEndTime: new Date().toISOString(),
-        failed: true
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Alert Archiver System'
+    await Logger.logSystem('alert_archiving_failed', {
+      error: error.message,
+      processStartTime: processStartTime.toISOString(),
+      processEndTime: new Date().toISOString(),
+      failed: true
     });
     
     return result;

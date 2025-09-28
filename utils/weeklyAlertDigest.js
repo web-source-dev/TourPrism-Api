@@ -8,7 +8,7 @@ import ForecastSendSummary from '../models/forecastSendSummary.js';
 import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { transporter } from './emailService.js';
 import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
-import Logs from '../models/Logs.js'; // Added import for Logs
+import Logger from './logger.js';
 
 dotenv.config();
 
@@ -202,24 +202,16 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
     console.log(`✅ Weekly digest sent to ${subscriber.email} with ${alerts.length} alerts`);
     
     // Log individual email send
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Weekly Digest System',
-      action: 'weekly_email_sent',
-      details: {
-        subscriberEmail: subscriber.email,
-        subscriberName: subscriber.name,
-        alertCount: alerts.length,
-        alertIds: alerts.map(a => a._id),
-        alertCategories: alerts.map(a => a.alertCategory),
-        locations: subscriber.location?.map(loc => loc.name) || [],
-        sectors: Array.isArray(subscriber.sector) ? subscriber.sector : [subscriber.sector],
-        isRegisteredUser: !!user,
-        digestType: 'weekly'
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Weekly Digest System'
+    await Logger.logSystem('weekly_email_sent', {
+      subscriberEmail: subscriber.email,
+      subscriberName: subscriber.name,
+      alertCount: alerts.length,
+      alertIds: alerts.map(a => a._id),
+      alertCategories: alerts.map(a => a.alertCategory),
+      locations: subscriber.location?.map(loc => loc.name) || [],
+      sectors: Array.isArray(subscriber.sector) ? subscriber.sector : [subscriber.sector],
+      isRegisteredUser: !!user,
+      digestType: 'weekly'
     });
     
     // Update the subscriber's lastWeeklyForecastReceived timestamp
@@ -262,19 +254,11 @@ const sendWeeklyDigest = async (subscriber, alerts) => {
     console.error(`❌ Error sending weekly digest to ${subscriber.email}:`, error);
     
     // Log the error
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Weekly Digest System',
-      action: 'weekly_email_sent',
-      details: {
-        subscriberEmail: subscriber.email,
-        error: error.message,
-        alertCount: alerts.length,
-        failed: true
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Weekly Digest System'
+    await Logger.logSystem('weekly_email_failed', {
+      subscriberEmail: subscriber.email,
+      error: error.message,
+      alertCount: alerts.length,
+      failed: true
     });
     
     throw error;
@@ -345,41 +329,25 @@ const processWeeklyDigests = async () => {
     console.log('=====================================');
     
     // Log overall process completion
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Weekly Digest System',
-      action: 'weekly_email_process_completed',
-      details: {
-        totalSubscribers: subscribers.length,
-        emailsSent: totalEmailsSent,
-        totalAlertsSent: totalAlertsSent,
-        processStartTime: new Date().toISOString(),
-        processEndTime: new Date().toISOString(),
-        successRate: subscribers.length > 0 ? (totalEmailsSent / subscribers.length * 100).toFixed(2) + '%' : '0%',
-        averageAlertsPerEmail: totalEmailsSent > 0 ? (totalAlertsSent / totalEmailsSent).toFixed(2) : 0
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Weekly Digest System'
+    await Logger.logSystem('weekly_email_process_completed', {
+      totalSubscribers: subscribers.length,
+      emailsSent: totalEmailsSent,
+      totalAlertsSent: totalAlertsSent,
+      processStartTime: new Date().toISOString(),
+      processEndTime: new Date().toISOString(),
+      successRate: subscribers.length > 0 ? (totalEmailsSent / subscribers.length * 100).toFixed(2) + '%' : '0%',
+      averageAlertsPerEmail: totalEmailsSent > 0 ? (totalAlertsSent / totalEmailsSent).toFixed(2) : 0
     });
   } catch (error) {
     console.error('❌ Error in weekly digest process:', error);
     
     // Log process error
-    await Logs.createLog({
-      userId: null,
-      userEmail: 'tourprism.alerts@gmail.com',
-      userName: 'Weekly Digest System',
-      action: 'weekly_email_process_completed',
-      details: {
-        error: error.message,
-        totalSubscribers: subscribers?.length || 0,
-        emailsSent: totalEmailsSent || 0,
-        totalAlertsSent: totalAlertsSent || 0,
-        failed: true
-      },
-      ipAddress: '127.0.0.1',
-      userAgent: 'Weekly Digest System'
+    await Logger.logSystem('weekly_email_process_failed', {
+      error: error.message,
+      totalSubscribers: subscribers?.length || 0,
+      emailsSent: totalEmailsSent || 0,
+      totalAlertsSent: totalAlertsSent || 0,
+      failed: true
     });
   }
 };

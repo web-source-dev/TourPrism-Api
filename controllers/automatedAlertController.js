@@ -1,5 +1,5 @@
 import Alert from '../models/Alert.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import { AutomatedAlertGenerator } from '../utils/automatedAlertGenerator.js';
 
 // Get automated alerts with filtering and pagination
@@ -13,7 +13,8 @@ export const getAutomatedAlerts = async (req, res) => {
       category,
       startDate,
       endDate,
-      search 
+      search,
+      targetAudience
     } = req.query;
 
     const query = {
@@ -46,6 +47,12 @@ export const getAutomatedAlerts = async (req, res) => {
       }
     }
 
+    // Filter by target audience
+    if (targetAudience) {
+      const audienceArray = Array.isArray(targetAudience) ? targetAudience : [targetAudience];
+      query.targetAudience = { $in: audienceArray };
+    }
+
     // Search in title and description
     if (search) {
       query.$or = [
@@ -65,9 +72,9 @@ export const getAutomatedAlerts = async (req, res) => {
       Alert.countDocuments(query)
     ]);
 
-    // Group alerts by status for summary
+    // Group alerts by status for summary - use the same query as alerts
     const statusSummary = await Alert.aggregate([
-      { $match: { alertGroupId: { $regex: /^(auto_|duplicate_)/ } } },
+      { $match: query },
       {
         $group: {
           _id: '$status',
@@ -85,6 +92,12 @@ export const getAutomatedAlerts = async (req, res) => {
 
     statusSummary.forEach(item => {
       summary[item._id] = item.count;
+    });
+
+    // Log the action
+    await Logger.logCRUD('list', req, 'Automated alerts', null, {
+      alertCount: alerts.length,
+      filters: { status, city, category, targetAudience }
     });
 
     res.json({
@@ -137,18 +150,10 @@ export const bulkApproveAlerts = async (req, res) => {
     );
 
     // Log the bulk approval
-    await Logs.createLog({
-      userId,
-      userEmail,
-      userName,
-      action: 'bulk_approve_automated_alerts',
-      details: {
-        alertIds,
-        count: result.modifiedCount,
-        reason: reason || 'Bulk approval by admin'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Automated alerts bulk approval', null, {
+      alertIds,
+      count: result.modifiedCount,
+      reason: reason || 'Bulk approval by admin'
     });
 
     res.json({
@@ -201,18 +206,10 @@ export const bulkRejectAlerts = async (req, res) => {
     );
 
     // Log the bulk rejection
-    await Logs.createLog({
-      userId,
-      userEmail,
-      userName,
-      action: 'bulk_reject_automated_alerts',
-      details: {
-        alertIds,
-        count: result.modifiedCount,
-        reason
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Automated alerts bulk rejection', null, {
+      alertIds,
+      count: result.modifiedCount,
+      reason
     });
 
     res.json({
@@ -259,17 +256,9 @@ export const approveAlert = async (req, res) => {
     await alert.save();
 
     // Log the approval
-    await Logs.createLog({
-      userId,
-      userEmail,
-      userName,
-      action: 'approve_automated_alert',
-      details: {
-        alertId: id,
-        reason: reason || 'Approved by admin'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Automated alert approval', id, {
+      alertTitle: alert.title,
+      reason: reason || 'Approved by admin'
     });
 
     res.json({
@@ -321,17 +310,9 @@ export const rejectAlert = async (req, res) => {
     await alert.save();
 
     // Log the rejection
-    await Logs.createLog({
-      userId,
-      userEmail,
-      userName,
-      action: 'reject_automated_alert',
-      details: {
-        alertId: id,
-        reason
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Automated alert rejection', id, {
+      alertTitle: alert.title,
+      reason
     });
 
     res.json({
@@ -410,6 +391,11 @@ export const getAutomatedAlertStats = async (req, res) => {
       processedStats.total += count;
     });
 
+    // Log the action
+    await Logger.logCRUD('view', req, 'Automated alert statistics', null, {
+      statsGenerated: true
+    });
+
     res.json({
       success: true,
       data: processedStats
@@ -419,6 +405,84 @@ export const getAutomatedAlertStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch statistics',
+      error: error.message
+    });
+  }
+};
+
+// Edit automated alert
+export const editAutomatedAlert = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      title, 
+      description, 
+      alertCategory, 
+      impact, 
+      targetAudience, 
+      recommendedAction,
+      expectedStart,
+      expectedEnd
+    } = req.body;
+    const { userId, userEmail, userName } = req;
+
+    // Find the alert
+    const alert = await Alert.findOne({
+      _id: id,
+      alertGroupId: { $regex: /^(auto_|duplicate_)/ }
+    });
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        message: 'Automated alert not found'
+      });
+    }
+
+    // Update the alert fields
+    if (title !== undefined) alert.title = title;
+    if (description !== undefined) alert.description = description;
+    if (alertCategory !== undefined) alert.alertCategory = alertCategory;
+    if (impact !== undefined) alert.impact = impact;
+    if (targetAudience !== undefined) {
+      // Ensure targetAudience is an array
+      alert.targetAudience = Array.isArray(targetAudience) ? targetAudience : [targetAudience];
+    }
+    if (recommendedAction !== undefined) alert.recommendedAction = recommendedAction;
+    if (expectedStart !== undefined) alert.expectedStart = expectedStart ? new Date(expectedStart) : null;
+    if (expectedEnd !== undefined) alert.expectedEnd = expectedEnd ? new Date(expectedEnd) : null;
+
+    // Update metadata
+    alert.updatedBy = userName || userEmail;
+    alert.updated = new Date();
+
+    await alert.save();
+
+    // Log the edit
+    await Logger.logCRUD('update', req, 'Automated alert edit', id, {
+      alertTitle: alert.title,
+      changes: {
+        title,
+        description,
+        alertCategory,
+        impact,
+        targetAudience,
+        recommendedAction,
+        expectedStart,
+        expectedEnd
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Alert updated successfully',
+      alert
+    });
+  } catch (error) {
+    console.error('Error editing alert:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update alert',
       error: error.message
     });
   }
@@ -447,17 +511,9 @@ export const triggerAlertGeneration = async (req, res) => {
     }
 
     // Log the manual trigger
-    await Logs.createLog({
-      userId,
-      userEmail,
-      userName,
-      action: 'manual_trigger_alert_generation',
-      details: {
-        city: city || 'all',
-        results
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('create', req, 'Manual alert generation trigger', null, {
+      city: city || 'all',
+      results
     });
 
     res.json({

@@ -1,6 +1,6 @@
 import Alert from '../models/Alert.js';
 import User from '../models/User.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import { autoUpdateSystem } from '../utils/autoUpdateSystem.js';
 
 /**
@@ -72,6 +72,12 @@ export const getAutoUpdateEligibleAlerts = async (req, res) => {
       };
     }));
     
+    // Log the action
+    await Logger.logCRUD('list', req, 'Auto-update eligible alerts', null, {
+      alertCount: alertsWithUpdates.length,
+      totalCount
+    });
+
     res.json({ 
       alerts: alertsWithUpdates, 
       totalCount,
@@ -132,6 +138,13 @@ export const getAutoUpdateStats = async (req, res) => {
       })
     ]);
     
+    // Log the action
+    await Logger.logCRUD('view', req, 'Auto-update statistics', null, {
+      totalEligibleAlerts,
+      alertsWithUpdates,
+      suppressedAlerts
+    });
+
     res.json({
       totalEligibleAlerts,
       alertsWithUpdates,
@@ -155,6 +168,11 @@ export const checkAlertForUpdates = async (req, res) => {
     
     const result = await autoUpdateSystem.checkSpecificAlert(alertId, req.userId);
     
+    // Log the action
+    await Logger.logCRUD('view', req, 'Alert update check', alertId, {
+      result: result.success
+    });
+    
     res.json(result);
   } catch (error) {
     console.error('Error checking alert for updates:', error);
@@ -172,6 +190,11 @@ export const suppressAutoUpdates = async (req, res) => {
     
     const result = await autoUpdateSystem.suppressAutoUpdates(alertId, req.userId, reason);
     
+    // Log the action
+    await Logger.logCRUD('update', req, 'Auto-update suppression', alertId, {
+      reason: reason || 'No reason provided'
+    });
+    
     res.json(result);
   } catch (error) {
     console.error('Error suppressing auto-updates:', error);
@@ -187,6 +210,11 @@ export const enableAutoUpdates = async (req, res) => {
     const { alertId } = req.params;
     
     const result = await autoUpdateSystem.enableAutoUpdates(alertId, req.userId);
+    
+    // Log the action
+    await Logger.logCRUD('update', req, 'Auto-update enable', alertId, {
+      result: result.success
+    });
     
     res.json(result);
   } catch (error) {
@@ -224,6 +252,11 @@ export const getAlertUpdateHistory = async (req, res) => {
         .select('_id title description createdAt');
     }
     
+    // Log the action
+    await Logger.logCRUD('view', req, 'Alert update history', alertId, {
+      updateCount: updates.length
+    });
+
     res.json({
       originalAlert,
       updates,
@@ -253,6 +286,11 @@ export const triggerAutoUpdateProcess = async (req, res) => {
       console.error('Background auto-update process failed:', error);
     });
     
+    // Log the action
+    await Logger.logCRUD('create', req, 'Auto-update process trigger', null, {
+      processStarted: true
+    });
+
     res.json({ 
       success: true, 
       message: "Auto-update process started" 
@@ -321,6 +359,12 @@ export const getAutoUpdateLogs = async (req, res) => {
     // Get total count for pagination
     const totalCount = await Logs.countDocuments(query);
     
+    // Log the action
+    await Logger.logCRUD('view', req, 'Auto-update logs', null, {
+      logCount: logs.length,
+      totalCount
+    });
+
     res.json({ 
       logs, 
       totalCount,

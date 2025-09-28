@@ -1,7 +1,7 @@
 import express from "express";
 import User from "../models/User.js";
 import Alert from "../models/Alert.js";
-import Logs from "../models/Logs.js";
+import Logger from "../utils/logger.js";
 import Notification from "../models/NotificationSys.js";
 import Subscriber from "../models/subscribers.js";
 import ForecastSendSummary from "../models/forecastSendSummary.js";
@@ -14,10 +14,10 @@ const router = express.Router();
 // Protect all admin routes with authentication and admin middleware
 
 // Dashboard stats route
-router.get('/dashboard/stats', authenticateRole(['admin']), getDashboardStats);
+router.get('/dashboard/stats', authenticateRole(['admin', 'manager', 'editor', 'viewer','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), getDashboardStats);
 
 // Get all users (admin only)
-router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']), async (req, res) => {
+router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -111,7 +111,7 @@ router.get("/users", authenticateRole(['admin', 'manager', 'editor', 'viewer']),
 });
 
 // Update user role (admin only)
-router.put("/users/:userId/role", authenticateRole(['admin']), async (req, res) => {
+router.put("/users/:userId/role", authenticateRole(['admin','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
@@ -134,23 +134,11 @@ router.put("/users/:userId/role", authenticateRole(['admin']), async (req, res) 
     
     // Log role change
     try {
-      // Get admin user info
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_user_role_changed',
-        details: {
-          targetUserId: userId,
-          targetUserEmail: user.email,
-          previousRole,
-          newRole: role,
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'user_role_changed', {
+        targetUserId: userId,
+        targetUserEmail: user.email,
+        previousRole,
+        newRole: role
       });
     } catch (error) {
       console.error('Error logging role change:', error);
@@ -164,7 +152,7 @@ router.put("/users/:userId/role", authenticateRole(['admin']), async (req, res) 
 });
 
 // Update user status (admin only)
-router.put("/users/:userId/status", authenticateRole(['admin']), async (req, res) => {
+router.put("/users/:userId/status", authenticateRole(['admin','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { userId } = req.params;
     const { status } = req.body;
@@ -187,23 +175,11 @@ router.put("/users/:userId/status", authenticateRole(['admin']), async (req, res
     
     // Log status change
     try {
-      // Get admin user info
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_user_status_changed',
-        details: {
-          targetUserId: userId,
-          targetUserEmail: user.email,
-          previousStatus,
-          newStatus: status,
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'user_restricted', {
+        targetUserId: userId,
+        targetUserEmail: user.email,
+        previousStatus,
+        newStatus: status
       });
     } catch (error) {
       console.error('Error logging status change:', error);
@@ -217,7 +193,7 @@ router.put("/users/:userId/status", authenticateRole(['admin']), async (req, res
 });
 
 // Get user profile details (admin only)
-router.get("/users/:userId", authenticateRole(['admin', 'manager', 'editor', 'viewer']), async (req, res) => {
+router.get("/users/:userId", authenticateRole(['admin', 'manager', 'editor', 'viewer','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -235,7 +211,7 @@ router.get("/users/:userId", authenticateRole(['admin', 'manager', 'editor', 'vi
 });
 
 // Delete user (soft delete - sets status to 'deleted')
-router.delete("/users/:userId", authenticateRole(['admin']), async (req, res) => {
+router.delete("/users/:userId", authenticateRole(['admin','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -256,23 +232,11 @@ router.delete("/users/:userId", authenticateRole(['admin']), async (req, res) =>
     
     // Log user deletion
     try {
-      // Get admin user info
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_user_deleted',
-        details: {
-          targetUserId: userId,
-          targetUserEmail: userEmail,
-          targetUserName: userName,
-          deleteType: 'soft_delete',
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'admin_user_deleted', {
+        targetUserId: userId,
+        targetUserEmail: userEmail,
+        targetUserName: userName,
+        deleteType: 'soft_delete'
       });
     } catch (error) {
       console.error('Error logging user deletion:', error);
@@ -286,7 +250,7 @@ router.delete("/users/:userId", authenticateRole(['admin']), async (req, res) =>
 });
 
 // Get all alerts (admin only)
-router.get("/alerts", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/alerts", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -445,7 +409,7 @@ router.get("/alerts", authenticateRole(['admin', 'manager', 'viewer', 'editor'])
 });
 
 // Update alert status (admin only)
-router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'editor']), async (req, res) => {
+router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     const { status } = req.body;
@@ -472,23 +436,11 @@ router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'edi
     
     // Log alert status change
     try {
-      // Get admin user info
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_alert_status_changed',
-        details: {
-          alertId,
-          alertTitle: alert.title,
-          previousStatus,
-          newStatus: status,
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'admin_alert_status_changed', {
+        alertId,
+        alertTitle: alert.title,
+        previousStatus,
+        newStatus: status
       });
     } catch (error) {
       console.error('Error logging alert status change:', error);
@@ -509,7 +461,7 @@ router.put("/alerts/:alertId/status", authenticateRole(['admin', 'manager', 'edi
 });
 
 // Delete alert (admin only)
-router.delete("/alerts/:alertId", authenticateRole(['admin','manager']), async (req, res) => {
+router.delete("/alerts/:alertId", authenticateRole(['admin','manager','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     
@@ -531,23 +483,11 @@ router.delete("/alerts/:alertId", authenticateRole(['admin','manager']), async (
     
     // Log alert deletion
     try {
-      // Get admin user info
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_alert_deleted',
-        details: {
-          alertId,
-          alertTitle,
-          previousStatus,
-          newStatus: 'deleted',
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'admin_alert_deleted', {
+        alertId,
+        alertTitle,
+        previousStatus,
+        newStatus: 'deleted'
       });
     } catch (error) {
       console.error('Error logging alert deletion:', error);
@@ -567,7 +507,7 @@ router.delete("/alerts/:alertId", authenticateRole(['admin','manager']), async (
 });
 
 // Archive alert (admin and manager only)
-router.put("/alerts/:alertId/archive", authenticateRole(['admin', 'manager', 'editor']), async (req, res) => {
+router.put("/alerts/:alertId/archive", authenticateRole(['admin', 'manager', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     
@@ -605,7 +545,7 @@ router.put("/alerts/:alertId/archive", authenticateRole(['admin', 'manager', 'ed
 });
 
 // Duplicate alert (admin, manager, editor only)
-router.post("/alerts/:alertId/duplicate", authenticateRole(['admin', 'manager', 'editor']), async (req, res) => {
+router.post("/alerts/:alertId/duplicate", authenticateRole(['admin', 'manager', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     
@@ -658,7 +598,7 @@ router.post("/alerts/:alertId/duplicate", authenticateRole(['admin', 'manager', 
 });
 
 // Get alert details (admin, manager, editor, viewer)
-router.get("/alerts/:alertId/details", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/alerts/:alertId/details", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     
@@ -677,7 +617,7 @@ router.get("/alerts/:alertId/details", authenticateRole(['admin', 'manager', 'vi
 });
 
 // Update alert (admin only)
-router.put("/alerts/:alertId", authenticateRole(['admin', 'manager', 'editor']), async (req, res) => {
+router.put("/alerts/:alertId", authenticateRole(['admin', 'manager', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     const updateData = req.body;
@@ -760,7 +700,7 @@ router.put("/alerts/:alertId", authenticateRole(['admin', 'manager', 'editor']),
 });
 
 // Create new alert (admin only)
-router.post("/alerts", authenticateRole(['admin', 'manager', 'editor']), async (req, res) => {
+router.post("/alerts", authenticateRole(['admin', 'manager', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const alertData = req.body;
     
@@ -822,7 +762,7 @@ router.post("/alerts", authenticateRole(['admin', 'manager', 'editor']), async (
 });
 
 // Get dashboard stats (admin only)
-router.get("/dashboard", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/dashboard", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     // Get total users count
     const totalUsers = await User.countDocuments();
@@ -868,7 +808,7 @@ router.get("/dashboard", authenticateRole(['admin', 'manager', 'viewer', 'editor
 });
 
 // Get all subscribers (admin only)
-router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -950,7 +890,7 @@ router.get("/subscribers", authenticateRole(['admin', 'manager', 'viewer', 'edit
 });
 
 // Add user to subscriber list (admin only)
-router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), async (req, res) => {
+router.post("/subscribers/add-user", authenticateRole(['admin', 'manager','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { userId, sector, location } = req.body;
     
@@ -984,21 +924,10 @@ router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), asy
     
     // Log the action
     try {
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_user_added_to_subscribers',
-        details: {
-          targetUserId: userId,
-          targetUserEmail: user.email,
-          sector: Array.isArray(sector) ? sector.join(', ') : (sector || 'Tourism'),
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'subscriber_added', {
+        targetUserId: userId,
+        targetUserEmail: user.email,
+        sector: Array.isArray(sector) ? sector.join(', ') : (sector || 'Tourism')
       });
     } catch (error) {
       console.error('Error logging subscriber addition:', error);
@@ -1015,7 +944,7 @@ router.post("/subscribers/add-user", authenticateRole(['admin', 'manager']), asy
 });
 
 // Remove user from subscriber list (admin only)
-router.delete("/subscribers/:subscriberId", authenticateRole(['admin', 'manager']), async (req, res) => {
+router.delete("/subscribers/:subscriberId", authenticateRole(['admin', 'manager','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { subscriberId } = req.params;
     
@@ -1041,21 +970,10 @@ router.delete("/subscribers/:subscriberId", authenticateRole(['admin', 'manager'
     
     // Log the action
     try {
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_subscriber_removed',
-        details: {
-          subscriberId,
-          subscriberEmail,
-          subscriberName,
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'subscriber_deleted', {
+        subscriberId,
+        subscriberEmail,
+        subscriberName
       });
     } catch (error) {
       console.error('Error logging subscriber removal:', error);
@@ -1068,7 +986,7 @@ router.delete("/subscribers/:subscriberId", authenticateRole(['admin', 'manager'
 });
 
 // Update subscriber status (admin only)
-router.put("/subscribers/:subscriberId/status", authenticateRole(['admin', 'manager']), async (req, res) => {
+router.put("/subscribers/:subscriberId/status", authenticateRole(['admin', 'manager','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor'     ]), async (req, res) => {
   try {
     const { subscriberId } = req.params;
     const { isActive } = req.body;
@@ -1094,22 +1012,11 @@ router.put("/subscribers/:subscriberId/status", authenticateRole(['admin', 'mana
     
     // Log the action
     try {
-      const adminUser = await User.findById(req.userId).select('firstName lastName email role');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || adminUser?.email,
-        userName: adminUser ? (adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : (adminUser.firstName || adminUser.email?.split('@')[0])) : 'Unknown',
-        action: 'admin_subscriber_status_changed',
-        details: {
-          subscriberId,
-          subscriberEmail: subscriber.email,
-          previousStatus,
-          newStatus: isActive,
-          adminRole: adminUser?.role || 'admin'
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, isActive ? 'subscriber_activated' : 'subscriber_deactivated', {
+        subscriberId,
+        subscriberEmail: subscriber.email,
+        previousStatus,
+        newStatus: isActive
       });
     } catch (error) {
       console.error('Error logging subscriber status change:', error);
@@ -1122,7 +1029,7 @@ router.put("/subscribers/:subscriberId/status", authenticateRole(['admin', 'mana
 });
 
 // Get subscriber details (admin only)
-router.get("/subscribers/:subscriberId", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/subscribers/:subscriberId", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { subscriberId } = req.params;
     
@@ -1138,7 +1045,7 @@ router.get("/subscribers/:subscriberId", authenticateRole(['admin', 'manager', '
 });
 
 // Get forecast send summaries (admin only)
-router.get("/forecast-summaries", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/forecast-summaries", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -1228,7 +1135,7 @@ router.get("/forecast-summaries", authenticateRole(['admin', 'manager', 'viewer'
 });
 
 // Get forecast summary details (admin only)
-router.get("/forecast-summaries/:summaryId", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/forecast-summaries/:summaryId", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { summaryId } = req.params;
     
@@ -1248,7 +1155,7 @@ router.get("/forecast-summaries/:summaryId", authenticateRole(['admin', 'manager
 // Auto-update management endpoints
 
 // Get alerts with auto-update information
-router.get("/alerts-with-updates", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/alerts-with-updates", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -1318,7 +1225,7 @@ router.get("/alerts-with-updates", authenticateRole(['admin', 'manager', 'viewer
 });
 
 // Get update history for an alert
-router.get("/alerts/:alertId/update-history", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/alerts/:alertId/update-history", authenticateRole(['admin', 'manager', 'viewer', 'editor','Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor' ]), async (req, res) => {
   try {
     const { alertId } = req.params;
     

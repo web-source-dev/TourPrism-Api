@@ -1,6 +1,7 @@
 import express from "express";
 import Alert from "../models/Alert.js";
 import TimeTracking from "../models/timetracking.js";
+import Logger from "../utils/logger.js";
 import { authenticate, authenticateRole } from "../middleware/auth.js";
 
 const router = express.Router();

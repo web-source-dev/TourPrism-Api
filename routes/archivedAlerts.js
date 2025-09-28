@@ -1,6 +1,7 @@
 import express from "express";
 import Alert from "../models/Alert.js";
 import User from "../models/User.js";
+import Logger from "../utils/logger.js";
 import { authenticateRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -13,7 +14,9 @@ router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), asyn
     // Log archived alerts view if user is authenticated
     if (req.userId) {
       try {
-        const user = req.userId ? await User.findById(req.userId).select('firstName lastName email') : null;
+        await Logger.log(req, 'archived_alerts_viewed', {
+          filters: { city, incidentTypes, timeRange, originOnly }
+        });
       } catch (error) {
         console.error('Error logging archived alerts view:', error);
         // Continue execution even if logging fails

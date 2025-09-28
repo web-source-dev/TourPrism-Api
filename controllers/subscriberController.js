@@ -1,5 +1,5 @@
 import Subscriber from '../models/subscribers.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import User from '../models/User.js';
 
 export const createSubscriber = async (req, res) => {
@@ -63,17 +63,11 @@ export const createSubscriber = async (req, res) => {
     console.log(`User model update for new subscription (${email}):`, userUpdateResult);
     
     // Log the new subscription
-    await Logs.createLog({
-      action: 'subscriber_added',
-      userEmail: email,
-      userName: name || email.split('@')[0],
-      details: {
-        sector: Array.isArray(sector) ? sector.join(', ') : sector,
-        location: Array.isArray(location) ? location.map(loc => loc.name).join(', ') : location,
-        subscriptionType: 'Weekly forecast'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('create', req, 'Subscriber', newSubscriber._id, {
+      email: email,
+      sector: Array.isArray(sector) ? sector.join(', ') : sector,
+      location: Array.isArray(location) ? location.map(loc => loc.name).join(', ') : location,
+      subscriptionType: 'Weekly forecast'
     });
     
     res.status(201).json({ message: 'Subscription successful', subscriber: newSubscriber });
@@ -114,17 +108,12 @@ export const updateSubscriberStatusByEmail = async (req, res) => {
     console.log(`User model update for status change (${email}, isActive=${isActive}):`, userUpdateResult);
     
     // Log the subscription status change
-    await Logs.createLog({
-      action: isActive ? 'subscriber_activated' : 'subscriber_deactivated',
-      userEmail: email,
-      userName: subscriber.name || email.split('@')[0],
-      details: {
-        sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
-        location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
-        subscriptionType: 'Weekly forecast'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Subscriber status', subscriber._id, {
+      email: email,
+      isActive: isActive,
+      sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
+      location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
+      subscriptionType: 'Weekly forecast'
     });
     
     res.status(200).json({ 

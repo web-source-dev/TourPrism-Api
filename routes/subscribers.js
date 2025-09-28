@@ -1,5 +1,5 @@
 import express from 'express';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import { createSubscriber, updateSubscriberStatusByEmail } from '../controllers/subscriberController.js';
 import Subscriber from '../models/subscribers.js';
 import User from '../models/User.js';
@@ -65,17 +65,10 @@ router.get('/unsubscribe', async (req, res) => {
     { $set: { weeklyForecastSubscribed: false } }
   );
 
-  await Logs.createLog({
-    action: 'subscriber_unsubscribed',
-    userEmail: email,
-    userName: subscriber.name || email.split('@')[0],
-          details: {
-        sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
-        location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
-        subscriptionType: 'Weekly forecast'
-      },
-    ipAddress: req.ip,
-    userAgent: req.get('user-agent')
+  await Logger.log(req, 'subscriber_unsubscribed', {
+    sector: Array.isArray(subscriber.sector) ? subscriber.sector.join(', ') : subscriber.sector,
+    location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location,
+    subscriptionType: 'Weekly forecast'
   });
 
   await subscriber.save();

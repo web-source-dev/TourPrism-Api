@@ -1,7 +1,7 @@
 import express from "express";
 import Notification from "../models/NotificationSys.js";
 import User from "../models/User.js";
-import Logs from "../models/Logs.js";
+import Logger from "../utils/logger.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -61,20 +61,10 @@ router.delete("/:id", authenticate, async (req, res) => {
     
     // Log notification deletion
     try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'notification_deleted',
-        details: {
-          notificationId,
-          notificationType: notification.notificationType || 'general',
-          title: notification.title
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'notification_deleted', {
+        notificationId,
+        notificationType: notification.notificationType || 'general',
+        title: notification.title
       });
     } catch (error) {
       console.error('Error logging notification deletion:', error);
@@ -104,18 +94,8 @@ router.patch("/mark-all-read", authenticate, async (req, res) => {
     
     // Log marking all notifications as read
     try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'notifications_all_read',
-        details: {
-          count: unreadCount
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'notifications_marked_all_read', {
+        count: unreadCount
       });
     } catch (error) {
       console.error('Error logging mark all read:', error);

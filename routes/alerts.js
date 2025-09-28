@@ -1,7 +1,7 @@
 import express from "express";
 import Alert from "../models/Alert.js";
 import User from "../models/User.js";
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import { upload, getFileType } from "../utils/fileUpload.js";
 import { authenticate, optionalAuth } from "../middleware/auth.js";
 import { io } from "../index.js";
@@ -167,24 +167,13 @@ router.post(
 
       // Log alert creation
       try {
-        // Get user info for better logging
-        const user = await User.findById(req.userId).select('firstName lastName email');
-        
-        await Logs.createLog({
-          userId: req.userId,
-          userEmail: req.userEmail || user?.email,
-          userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-          action: 'alert_created',
-          details: {
-            alertId: alert._id,
-            title: alert.title,
-            category: alertCategory,
-            type: alertType,
-            impactLocationsCount: parsedImpactLocations.length,
-            hasMedia: mediaFiles.length > 0
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
+        await Logger.log(req, 'alert_created', {
+          alertId: alert._id,
+          title: alert.title,
+          category: alertCategory,
+          type: alertType,
+          impactLocationsCount: parsedImpactLocations.length,
+          hasMedia: mediaFiles.length > 0
         });
       } catch (logError) {
         console.error('Error logging alert creation:', logError);
@@ -208,7 +197,7 @@ router.post(
 // Get all alerts (with optional filtering)
 router.get("/", optionalAuth, async (req, res) => {
   try {
-    const { city, alertCategory, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly, impact } = req.query;
+    const { city, alertCategory, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly, impact, targetAudience } = req.query;
     
     const currentDate = new Date();
     
@@ -254,6 +243,12 @@ router.get("/", optionalAuth, async (req, res) => {
     // Incident types filter - updated to use alertCategory
     if (alertCategory) {
       query.alertCategory = { $in: Array.isArray(alertCategory) ? alertCategory : [alertCategory] };
+    }
+    
+    // Target audience filter
+    if (targetAudience) {
+      const targetAudienceArray = Array.isArray(targetAudience) ? targetAudience : [targetAudience];
+      query.targetAudience = { $in: targetAudienceArray };
     }
     
     // Time range filter - use expectedStart and expectedEnd fields
@@ -457,6 +452,10 @@ router.get("/", optionalAuth, async (req, res) => {
       }
     }
 
+    await Logger.log(req, 'alerts_viewed', {
+      filters: { city, alertCategory, latitude, longitude, distance, limit, page, sortBy, startDate, endDate, originOnly, impact, targetAudience }
+    });
+
     res.json({
       alerts: transformedAlerts,
       totalCount: total,
@@ -580,18 +579,10 @@ router.post("/:id/follow", authenticate, async (req, res) => {
 
     // Log follow/unfollow action
     try {
-      await Logs.createLog({
-        userId,
-        userEmail: user.email,
-        userName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email.split('@')[0]),
-        action: isFollowing ? 'alert_followed' : 'alert_unfollowed',
-        details: {
-          alertId,
-          alertTitle: alert.title,
-          followCount: followingCount
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, isFollowing ? 'alert_followed' : 'alert_unfollowed', {
+        alertId,
+        alertTitle: alert.title,
+        followCount: followingCount
       });
     } catch (logError) {
       console.error('Error logging follow action:', logError);
@@ -692,20 +683,10 @@ router.post("/:id/like", authenticate, async (req, res) => {
 
     // Log like/unlike action
     try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: wasLiked ? 'alert_unliked' : 'alert_liked',
-        details: {
-          alertId: alert._id,
-          alertTitle: alert.title,
-          likeCount: alert.likes
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, wasLiked ? 'alert_unliked' : 'alert_liked', {
+        alertId: alert._id,
+        alertTitle: alert.title,
+        likeCount: alert.likes
       });
     } catch (logError) {
       console.error('Error logging like action:', logError);
@@ -743,20 +724,10 @@ router.post("/:id/share", authenticate, async (req, res) => {
 
     // Log share action
     try {
-      const user = await User.findById(req.userId).select('firstName lastName email');
-      
-      await Logs.createLog({
-        userId: req.userId,
-        userEmail: req.userEmail || user?.email,
-        userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-        action: 'alert_shared',
-        details: {
-          alertId: alert._id,
-          alertTitle: alert.title,
-          shareCount: alert.shares
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.log(req, 'alert_shared', {
+        alertId: alert._id,
+        alertTitle: alert.title,
+        shareCount: alert.shares
       });
     } catch (logError) {
       console.error('Error logging share action:', logError);

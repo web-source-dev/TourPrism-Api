@@ -2,7 +2,7 @@ import ActionHub from '../models/ActionHub.js';
 import Alert from '../models/Alert.js';
 import User from '../models/User.js';
 import NotificationSys from '../models/NotificationSys.js';
-import Logs from '../models/Logs.js';
+import Logger from '../utils/logger.js';
 import sendAlertNotificationToGuest from '../utils/emailTemplates/alertNotification-guests.js';
 import sendAlertNotificationToTeam from '../utils/emailTemplates/alertNotification-team.js';
 /**
@@ -85,6 +85,11 @@ export const getActionHubAlerts = async (req, res) => {
         actionHubUpdatedAt: item.updatedAt // Add ActionHub update date
       };
     }).filter(item => item !== null); // Filter out any null items
+
+    // Log the action
+    await Logger.logCRUD('list', req, 'Action Hub alerts', null, {
+      alertCount: formattedItems.length
+    });
 
     return res.status(200).json(formattedItems);
   } catch (error) {
@@ -186,6 +191,11 @@ export const getActionHubAlertById = async (req, res) => {
       }))
     };
 
+    // Log the action
+    await Logger.logCRUD('view', req, 'Action Hub alert', actionHubItem._id, {
+      alertTitle: alertData.title
+    });
+
     return res.status(200).json(response);
   } catch (error) {
     console.error('Error fetching Action Hub alert:', error);
@@ -270,24 +280,11 @@ export const flagAlert = async (req, res) => {
       })}
     });
     
-    // Get user info for logging
-    const user = await User.findById(userId).select('firstName lastName email');
-    
     // Log the flag action
-    await Logs.createLog({
-      userId: userId,
-      userEmail: userEmail || user?.email,
-      userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-      action: 'alert_flagged',
-      details: {
-        action: flaggedAction,
-        alertId: alertId,
-        alertTitle: alert.title,
-        actionHubId: actionHubItem._id,
-        isCollaborator: !!userEmail
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD(flaggedAction === 'flag_added' ? 'create' : 'update', req, 'Action Hub flag', actionHubItem._id, {
+      alertId: alertId,
+      alertTitle: alert.title,
+      action: flaggedAction
     });
 
     return res.status(200).json({ 
@@ -417,23 +414,11 @@ export const followAlert = async (req, res) => {
       await user.save();
       
       // Log the follow/unfollow action
-      await Logs.createLog({
-        userId: userId,
-        userEmail: userEmail || user.email,
-        userName: user.firstName && user.lastName ? 
-          `${user.firstName} ${user.lastName}` : 
-          (user.firstName || user.email?.split('@')[0]),
-        action: isFollowing ? 'alert_followed' : 'alert_unfollowed',
-        details: {
-          action: followAction,
-          alertId: alertId,
-          alertTitle: alert.title,
-          actionHubId: actionHubItem?._id,
-          isCollaborator: !!userEmail,
-          followCount: followingCount
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+      await Logger.logCRUD(isFollowing ? 'create' : 'delete', req, 'Action Hub follow', actionHubItem?._id, {
+        alertId: alertId,
+        alertTitle: alert.title,
+        action: followAction,
+        followCount: followingCount
       });
     }
 
@@ -513,26 +498,12 @@ export const markActionHubItemStatus = async (req, res) => {
     // Populate alert info for logging
     await actionHubItem.populate('alert');
     
-    // Get user info for logging
-    const user = await User.findById(userId).select('firstName lastName email role');
-    
     // Log the status change
-    await Logs.createLog({
-      userId: userId,
-      userEmail: userEmail || user?.email,
-      userName: user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.email?.split('@')[0])) : 'Unknown',
-      action: 'action_hub_status_changed',
-      details: {
-        actionHubId: actionHubItem._id,
-        alertId: actionHubItem.alert?._id,
-        alertTitle: actionHubItem.alert?.title || 'Unknown Alert',
-        previousStatus: previousStatus,
-        newStatus: status,
-        isCollaborator: !!userEmail,
-        userRole: user?.role || 'unknown'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+    await Logger.logCRUD('update', req, 'Action Hub status', actionHubItem._id, {
+      alertId: actionHubItem.alert?._id,
+      alertTitle: actionHubItem.alert?.title || 'Unknown Alert',
+      previousStatus: previousStatus,
+      newStatus: status
     });
 
     return res.status(200).json({ 
@@ -569,6 +540,11 @@ export const setActiveTab = async (req, res) => {
     actionHubItem.currentActiveTab = tab;
     
     await actionHubItem.save();
+
+    // Log the action
+    await Logger.logCRUD('update', req, 'Action Hub tab', actionHubItem._id, {
+      tab: tab
+    });
 
     return res.status(200).json({ 
       message: 'Active tab updated successfully',
@@ -619,6 +595,11 @@ export const addNote = async (req, res) => {
     
     await actionHubItem.save();
 
+    // Log the action
+    await Logger.logCRUD('create', req, 'Action Hub note', actionHubItem._id, {
+      noteLength: content.length
+    });
+
     return res.status(201).json({ 
       message: 'Note added successfully',
       note: newNote
@@ -668,6 +649,11 @@ export const addGuests = async (req, res) => {
     });
     
     await actionHubItem.save();
+
+    // Log the action
+    await Logger.logCRUD('create', req, 'Action Hub guests', actionHubItem._id, {
+      guestCount: validGuests.length
+    });
 
     return res.status(201).json({ 
       message: 'Guests added successfully',
@@ -769,6 +755,12 @@ export const notifyGuests = async (req, res) => {
     
     await actionHubItem.save();
 
+    // Log the action
+    await Logger.logCRUD('create', req, 'Action Hub guest notifications', actionHubItem._id, {
+      recipientCount: guestsToNotify.length,
+      alertTitle: alertTitle
+    });
+
     return res.status(200).json({ 
       message: 'Notifications sent successfully',
       notifiedGuests: guestsToNotify.length,
@@ -840,6 +832,11 @@ export const getActionLogs = async (req, res) => {
 
     // Sort logs by timestamp (most recent first)
     processedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    // Log the action
+    await Logger.logCRUD('view', req, 'Action Hub logs', actionHubItem._id, {
+      logCount: processedLogs.length
+    });
 
     return res.status(200).json(processedLogs);
   } catch (error) {
@@ -945,6 +942,13 @@ export const notifyTeam = async (req, res) => {
     });
     
     await actionHubItem.save();
+
+    // Log the action
+    await Logger.logCRUD('create', req, 'Action Hub team notifications', actionHubItem._id, {
+      recipientCount: collaboratorsToNotify.length,
+      alertTitle: alertTitle,
+      managersOnly: managersOnly
+    });
 
     return res.status(200).json({ 
       message: managersOnly 

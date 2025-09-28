@@ -368,25 +368,14 @@ router.post('/upload', authenticateRole(['admin', 'manager']), upload.single('fi
         
         // Log the bulk upload
         try {
-          // Get user info for better logging
-          const userName = req.userEmail ? req.userEmail.split('@')[0] : 'Admin';
-          
-          await Logs.createLog({
-            userId: req.userId,
-            userEmail: req.userEmail,
-            userName,
-            action: 'bulk_alerts_uploaded',
-            details: {
-              totalProcessed: processedCount,
-              successCount,
-              errorCount: errors.length,
-              duration: `${duration}ms`,
-              filename: req.file.originalname,
-              fileSize: req.file.size,
-              firstAlertId: createdAlerts.length > 0 ? createdAlerts[0]._id : null,
-            },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
+          await Logger.log(req, 'bulk_alerts_uploaded', {
+            totalProcessed: processedCount,
+            successCount,
+            errorCount: errors.length,
+            duration: `${duration}ms`,
+            filename: req.file.originalname,
+            fileSize: req.file.size,
+            firstAlertId: createdAlerts.length > 0 ? createdAlerts[0]._id : null,
           });
         } catch (logError) {
           console.error('Error logging bulk upload:', logError);

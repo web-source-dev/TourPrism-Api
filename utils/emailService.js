@@ -1,6 +1,7 @@
 import SibApiV3Sdk from 'sib-api-v3-sdk';
 import dotenv from 'dotenv';
 dotenv.config();
+import Logger from './logger.js';
 import sendVerificationEmail from './emailTemplates/verification.js';
 import sendCollaboratorInvitation from './emailTemplates/collaboratorInvitation.js';
 import sendAlertNotificationToGuest from './emailTemplates/alertNotification-guests.js';
@@ -32,9 +33,30 @@ const sendMail = async (mailOptions) => {
   sendSmtpEmail.htmlContent = mailOptions.html;
 
   try {
-    return await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    
+    // Log successful email send
+    await Logger.logSystem('email_sent', {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      subject: mailOptions.subject,
+      messageId: result.messageId,
+      emailType: mailOptions.emailType || 'general'
+    });
+    
+    return result;
   } catch (error) {
     console.error('Error sending email with Brevo:', error);
+    
+    // Log failed email send
+    await Logger.logSystem('email_send_failed', {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      subject: mailOptions.subject,
+      error: error.message,
+      emailType: mailOptions.emailType || 'general'
+    });
+    
     throw error;
   }
 };

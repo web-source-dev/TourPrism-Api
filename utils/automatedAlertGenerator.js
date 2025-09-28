@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import Alert from '../models/Alert.js';
-import Logs from '../models/Logs.js';
+import Logger from './logger.js';
 
 dotenv.config();
 
@@ -55,8 +55,7 @@ const ALERT_CATEGORIES = {
 
 // Target audiences (from create alert page)
 const TARGET_AUDIENCES = [
-  'Airline', 'Attraction', 'Car Rental', 'Cruise Line', 'DMO', 'Event Manager',
-  'Hotel', 'OTA', 'Tour Guide', 'Tour Operator', 'Travel Agency', 'Travel Media', 'Other'
+  'Airline', 'DMO', 'Hotel', 'Tour Operator', 'Travel agent'
 ];
 
 // Severity levels
@@ -71,7 +70,7 @@ class AutomatedAlertGenerator {
     this.geminiApiKey = process.env.GOOGLE_API_KEY;
     this.systemPrompt = this.buildSystemPrompt();
     // Default Gemini model – can be tuned to "gemini-1.5-pro" if desired
-    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
   }
   buildSystemPrompt() {
     return `You are a travel disruption alert analyzer. Your job is to analyze real data from multiple sources and create accurate, timely alerts for travel professionals.
@@ -88,6 +87,7 @@ class AutomatedAlertGenerator {
   - Use real dates, times, and locations directly from the source
   - Include source attribution (e.g., BBC, Met Office, Transport Authority) for transparency
   - Prioritize accuracy and relevancy over volume
+  - All generated alerts will be marked as "pending" for manual review before publication
   
   ALERT CATEGORIES & TYPES (USE EXACTLY AS SHOWN):
   - Industrial Action: Strike, Work-to-Rule, Labor Dispute, Other
@@ -221,10 +221,35 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
           const alertsMatch = jsonContent.match(/"alerts":\s*\[(.*?)\]/s);
           if (alertsMatch) {
             try {
-              const alertsJson = `{"alerts": [${alertsMatch[1]}]}`;
+              // If the JSON is truncated, try to complete it properly
+              let alertsContent = alertsMatch[1];
+              
+              // If the alerts array is not properly closed, try to fix it
+              if (!alertsContent.trim().endsWith(']')) {
+                // Count opening and closing brackets to see if we need to close the array
+                const openBrackets = (alertsContent.match(/\[/g) || []).length;
+                const closeBrackets = (alertsContent.match(/\]/g) || []).length;
+                const openBraces = (alertsContent.match(/\{/g) || []).length;
+                const closeBraces = (alertsContent.match(/\}/g) || []).length;
+                
+                // If we have unclosed structures, try to close them
+                if (openBrackets > closeBrackets) {
+                  alertsContent += ']'.repeat(openBrackets - closeBrackets);
+                }
+                if (openBraces > closeBraces) {
+                  alertsContent += '}'.repeat(openBraces - closeBraces);
+                }
+                
+                // Ensure the array is properly closed
+                if (!alertsContent.trim().endsWith(']')) {
+                  alertsContent += ']';
+                }
+              }
+              
+              const alertsJson = `{"alerts": [${alertsContent}]}`;
               const fixedAlertsJson = this.fixCommonJsonIssues(alertsJson);
               parsedResponse = JSON.parse(fixedAlertsJson);
-              console.log(`Successfully parsed JSON by extracting alerts array for ${city.name}`);
+              console.log(`Successfully parsed JSON by extracting and fixing alerts array for ${city.name}`);
             } catch (extractError) {
               console.error(`Failed to extract alerts array for ${city.name}:`, extractError.message);
               throw new Error(`JSON parsing failed for ${city.name}: ${parseError.message}`);
@@ -313,15 +338,11 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
           parts: [{ text: userPrompt }]
         }
       ],
-      // Enable Google Search grounding
-      tools: [
-        { googleSearchRetrieval: {} }
-      ],
       generationConfig: {
         temperature: 0.3, // Lower temperature for more consistent JSON formatting
         topP: 0.8,
         topK: 20,
-        maxOutputTokens: 4000
+        maxOutputTokens: 8192 // Increased to handle longer JSON responses
       }
     };
 
@@ -875,7 +896,7 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
       ...alertData,
       status: this.determineStatus(confidence),
       alertGroupId: isDuplicate ? `duplicate_${Date.now()}` : `auto_${Date.now()}`,
-      addToEmailSummary: confidence > 0.8,
+      addToEmailSummary: false, // Don't auto-add to email summary since all alerts are pending
       updatedBy: 'Automated System',
       // Set default priority if not provided
       priority: alertData.priority || 'medium',
@@ -924,13 +945,8 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
   }
 
   determineStatus(confidence) {
-    if (confidence >= 0.9) {
-      return 'approved';
-    } else if (confidence >= 0.7) {
-      return 'pending';
-    } else {
-      return 'pending';
-    }
+    // All alerts should be pending for manual review
+    return 'pending';
   }
 
   async generateAlertsForAllCities() {
@@ -987,13 +1003,9 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
 
               await this.saveAlert(alertData, false, confidence);
 
-              if (status === 'approved') {
-                results.approved++;
-                results.cityResults[city.name].approved++;
-              } else {
-                results.pending++;
-                results.cityResults[city.name].pending++;
-              }
+              // All alerts are now pending for manual review
+              results.pending++;
+              results.cityResults[city.name].pending++;
             }
 
             results.total++;
@@ -1028,28 +1040,19 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
 
   async logGenerationResults(results, processStartTime, processEndTime, processDuration) {
     try {
-      await Logs.createLog({
-        userId: null,
-        userEmail: 'tourprism.alerts@gmail.com',
-        userName: 'Automated Alert Generator',
-        action: 'automated_alert_generation_completed',
-        details: {
-          totalAlertsGenerated: results.total,
-          totalApproved: results.approved,
-          totalPending: results.pending,
-          totalDuplicates: results.duplicates,
-          totalErrors: results.errors,
-          cityBreakdown: results.cityResults,
-          processStartTime: processStartTime.toISOString(),
-          processEndTime: processEndTime.toISOString(),
-          processDurationMs: processDuration,
-          processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
-          citiesProcessed: Object.keys(CITIES),
-          successRate: results.total > 0 ? ((results.approved + results.pending) / results.total * 100).toFixed(2) + '%' : '0%',
-          averageAlertsPerCity: (results.total / Object.keys(CITIES).length).toFixed(2)
-        },
-        ipAddress: '127.0.0.1',
-        userAgent: 'AutomatedAlertGenerator/1.0'
+      await Logger.logSystem('automated_alert_generation_completed', {
+        totalAlertsGenerated: results.total,
+        totalApproved: results.approved,
+        totalPending: results.pending,
+        totalDuplicates: results.duplicates,
+        totalErrors: results.errors,
+        processStartTime: processStartTime.toISOString(),
+        processEndTime: processEndTime.toISOString(),
+        processDurationMs: processDuration,
+        processDurationMinutes: (processDuration / 1000 / 60).toFixed(2),
+        citiesProcessed: Object.keys(CITIES),
+        successRate: results.total > 0 ? ((results.approved + results.pending) / results.total * 100).toFixed(2) + '%' : '0%',
+        averageAlertsPerCity: (results.total / Object.keys(CITIES).length).toFixed(2)
       });
     } catch (error) {
       console.error('Error logging generation results:', error);

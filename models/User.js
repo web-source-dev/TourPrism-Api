@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
     collaborators: [{
       name: String,
       email: String,
-      role: { type: String, enum: ['viewer','manager'], default: 'viewer' },
+      role: { type: String, enum: ['viewer','manager','DMO Advisor','Travel Agent Advisor','Tour Operator Advisor','Airline Advisor','Hotel Advisor'], default: 'viewer' },
       password: String,
       status: { type: String, enum: ['active', 'restricted', 'deleted','invited','accepted'], default: 'invited' },
       invitationToken: String,

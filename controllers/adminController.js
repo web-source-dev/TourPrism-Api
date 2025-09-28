@@ -1,6 +1,7 @@
 import Alert from '../models/Alert.js';
 import User from '../models/User.js';
 import Subscriber from '../models/subscribers.js';
+import Logger from '../utils/logger.js';
 import { startOfDay, subDays, endOfDay, addDays } from 'date-fns';
 
 export const getDashboardStats = async (req, res) => {
@@ -410,6 +411,11 @@ export const getDashboardStats = async (req, res) => {
         engagedAlertTypes
       }
     };
+
+    // Log the action
+    await Logger.logCRUD('view', req, 'Dashboard statistics', null, {
+      metricsGenerated: true
+    });
 
     res.json(dashboardStats);
   } catch (error) {
