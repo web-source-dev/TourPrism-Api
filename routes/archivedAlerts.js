@@ -7,7 +7,7 @@ import { authenticateRole } from "../middleware/auth.js";
 const router = express.Router();
 
 // Get all archived alerts (alerts whose expectedEnd date has passed) - Admin only
-router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor', 'Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const { city, incidentTypes, latitude, longitude, distance, limit = 10, page = 1, sortBy, timeRange, originOnly } = req.query;
     
@@ -26,8 +26,7 @@ router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), asyn
     const currentDate = new Date();
     
     // Base query: get approved alerts whose expectedEnd date has passed
-    let query = { 
-      status: "approved",
+    let query = {
       expectedEnd: { $lt: currentDate, $exists: true }
     };
     
@@ -126,8 +125,14 @@ router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), asyn
     let limitValue = parseInt(limit);
     let skipValue = (parseInt(page) - 1) * limitValue;
     
-    // Only apply limits for non-authenticated users
-    if (!req.userId) {
+    // Check if user is admin/manager/editor/viewer or advisor
+    const isAdminUser = req.user && (
+      ['admin', 'manager', 'editor', 'viewer'].includes(req.user.role) ||
+      ['Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor'].includes(req.collaboratorRole)
+    );
+    
+    // Only apply limits for non-admin users
+    if (!isAdminUser) {
       limitValue = 15;
       skipValue = 0;
     }
@@ -159,7 +164,7 @@ router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), asyn
       .sort(sortOptions);
     
     // Only apply skip and limit for non-admin users
-    if (!req.userId) {
+    if (!isAdminUser) {
       alertsQuery = alertsQuery.skip(skipValue).limit(limitValue);
     }
     
@@ -187,7 +192,7 @@ router.get("/", authenticateRole(['admin', 'manager', 'viewer', 'editor']), asyn
 });
 
 // Get archived alert by ID - Admin only
-router.get("/:id", authenticateRole(['admin', 'manager', 'viewer', 'editor']), async (req, res) => {
+router.get("/:id", authenticateRole(['admin', 'manager', 'viewer', 'editor', 'Airline Advisor', 'DMO Advisor', 'Hotel Advisor', 'Tour Operator Advisor', 'Travel Agent Advisor']), async (req, res) => {
   try {
     const alertId = req.params.id;
     const alert = await Alert.findById(alertId)

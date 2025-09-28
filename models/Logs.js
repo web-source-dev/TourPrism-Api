@@ -17,34 +17,6 @@ const LogSchema = new mongoose.Schema({
   action: {
     type: String,
     required: true,
-    enum: [
-      // Auth related
-      'signup', 'login', 'logout', 'password_reset', 'email_verified',
-      // Alert related
-      'alert_created', 'alert_updated', 'alert_deleted', 'alert_followed', 'alert_unfollowed',
-      'alert_liked', 'alert_shared', 'alert_flagged', 'alert_unflagged',
-      // Action hub related
-      'action_hub_created', 'action_hub_updated', 'action_hub_status_changed',
-      'action_hub_note_added', 'action_hub_guest_added', 'action_hub_notification_sent',
-      // Subscriber related
-      'subscriber_added', 'subscriber_updated', 'subscriber_deleted', 'subscriber_preferences_changed', 'subscriber_unsubscribed',
-      // Admin actions
-      'user_role_changed', 'user_restricted', 'user_deleted', 'bulk_alerts_uploaded', 'admin_users_viewed',
-      // Automated alert generation
-      'automated_alert_generation_completed', 'manual_trigger_alert_generation',
-      'bulk_approve_automated_alerts', 'bulk_reject_automated_alerts',
-      'approve_automated_alert', 'reject_automated_alert',
-      // Collaborator related
-      'collaborator_invited', 'collaborator_activated', 'collaborator_restricted', 'collaborator_deleted',
-      // Email and system operations
-      'email_sent', 'weekly_email_sent', 'weekly_email_process_completed',
-      'auto_update_process_completed', 'alert_auto_update_created', 'alert_auto_update_suppressed', 'alert_auto_update_enabled',
-      'alert_archived', 'alert_archiving_completed',
-      // Other
-      'profile_updated', 'summary_viewed', 'summary_generated', 'profile_viewed','notifications_viewed',
-      // City search related
-      'city_search_email_subscribed', 'city_search_email_unsubscribed',
-    ]
   },
   userFriendlyMessage: {
     type: String,
