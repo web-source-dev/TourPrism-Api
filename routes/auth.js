@@ -72,13 +72,13 @@ passport.use(
           });
           
           // Log new user signup via Google
-          await Logger.log(req, 'signup', {
+          await Logger.log(null, 'signup', {
             method: 'google',
             signupCompleted: true
           });
         } else {
           // Log Google login
-          await Logger.log(req, 'login', {
+          await Logger.log(null, 'login', {
             method: 'google',
             success: true
           });
@@ -111,13 +111,13 @@ passport.use(
           });
           
           // Log new user signup via Microsoft
-          await Logger.log(req, 'signup', {
+          await Logger.log(null, 'signup', {
             method: 'microsoft',
             signupCompleted: true
           });
         } else {
           // Log Microsoft login
-          await Logger.log(req, 'login', {
+          await Logger.log(null, 'login', {
             method: 'microsoft',
             success: true
           });
