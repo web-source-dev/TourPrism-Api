@@ -204,7 +204,7 @@ router.post("/register", async (req, res) => {
         }));
       }
     }
-
+ 
     // Create user with the populated data
     user = await User.create(userData);
 
