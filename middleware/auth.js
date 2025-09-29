@@ -16,20 +16,16 @@ const getTokenData = async (req) => {
 
   try {
     // First verify the token signature
-    console.log('JWT_SECRET at middleware verification time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
-    console.log('JWT_SECRET length at middleware:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Then verify the user exists in database and is active
     const user = await User.findById(decoded.userId);
     if (!user) {
-      console.log('Token user not found in database:', decoded.userId);
       return null;
     }
 
     // Check if user is active and not restricted/deleted
     if (user.status !== 'active') {
-      console.log('User account is not active:', user.status);
       return null;
     }
 
@@ -37,7 +33,6 @@ const getTokenData = async (req) => {
     if (decoded.isCollaborator) {
       const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
       if (!collaborator || collaborator.status !== 'active') {
-        console.log('Collaborator not found or not active:', decoded.collaboratorEmail);
         return null;
       }
       
@@ -50,7 +45,6 @@ const getTokenData = async (req) => {
     
     return decoded;
   } catch (err) {
-    console.log('Token verification failed:', err.message);
     return null;
   }
 };

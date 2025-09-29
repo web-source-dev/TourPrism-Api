@@ -222,8 +222,6 @@ router.get("/", optionalAuth, async (req, res) => {
         query.impact = { $in: validImpactLevels };
       }
     }
-    console.log(impact);
-    
     // City filter - check both origin city and impact cities unless originOnly is true
     if (city && typeof city === 'string') {
       if (originOnly === 'true') {

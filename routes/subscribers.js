@@ -32,8 +32,6 @@ router.get('/check/:email', async (req, res) => {
     const exists = !!subscriber;
     let isActive = subscriber && subscriber.isActive;
     
-    console.log(`Subscriber check for ${email}: exists=${exists}, isActive=${isActive}, subscriber:`, subscriber);
-    
     res.json({
       exists: exists,
       isActive: isActive

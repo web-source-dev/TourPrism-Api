@@ -8,19 +8,13 @@ export const createSubscriber = async (req, res) => {
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    
-    console.log(`Creating subscriber for email: ${email}`);
-    
     // Check if subscriber already exists
     const existingSubscriber = await Subscriber.findOne({ email });
-    console.log(`Existing subscriber check for ${email}:`, existingSubscriber);
     
     if (existingSubscriber) {
       if (existingSubscriber.isActive) {
-        console.log(`Subscriber ${email} is already active`);
         return res.status(400).json({ message: 'Email is already subscribed' });
       }
-      console.log(`Reactivating subscriber ${email}`);
       existingSubscriber.isActive = true;
       await existingSubscriber.save();
       
@@ -34,12 +28,10 @@ export const createSubscriber = async (req, res) => {
           } 
         }
       );
-      console.log(`User model update for reactivation (${email}):`, userUpdateResult);
       
       return res.status(200).json({ message: 'Subscription reactivated successfully' });
     }
     
-    console.log(`Creating new subscriber for ${email}`);
     const newSubscriber = new Subscriber({
       name,
       email,
@@ -48,7 +40,6 @@ export const createSubscriber = async (req, res) => {
       createdAt: new Date(),
     });
     await newSubscriber.save();
-    console.log(`New subscriber created:`, newSubscriber);
     
     // Update the user model as well
     const userUpdateResult = await User.updateOne(
@@ -60,7 +51,6 @@ export const createSubscriber = async (req, res) => {
         } 
       }
     );
-    console.log(`User model update for new subscription (${email}):`, userUpdateResult);
     
     // Log the new subscription
     await Logger.logCRUD('create', req, 'Subscriber', newSubscriber._id, {
@@ -85,9 +75,7 @@ export const updateSubscriberStatusByEmail = async (req, res) => {
     if (typeof isActive !== 'boolean') {
       return res.status(400).json({ message: 'isActive must be a boolean value' });
     }
-    console.log(`Updating subscriber status for email: ${email}`);
     const subscriber = await Subscriber.findOne({ email });
-    console.log(`Subscriber found:`, subscriber);
     if (!subscriber) {
       return res.status(404).json({ message: 'Subscriber not found' });
     }
@@ -105,7 +93,6 @@ export const updateSubscriberStatusByEmail = async (req, res) => {
       { email: email }, 
       { $set: updateData }
     );
-    console.log(`User model update for status change (${email}, isActive=${isActive}):`, userUpdateResult);
     
     // Log the subscription status change
     await Logger.logCRUD('update', req, 'Subscriber status', subscriber._id, {

@@ -45,8 +45,6 @@ const generateUserToken = (user, collaborator = null) => {
     tokenPayload.isCollaborator = false;
   }
 
-  console.log('JWT_SECRET at generation time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
-  console.log('JWT_SECRET length at generation:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
   return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
     expiresIn: "24h",
   });
@@ -794,9 +792,6 @@ router.get("/verify-token", async (req, res) => {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    // Verify token signature
-    console.log('JWT_SECRET at verification time:', process.env.JWT_SECRET ? 'exists' : 'undefined');
-    console.log('JWT_SECRET length:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'undefined');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Verify user exists in database and is active
@@ -961,14 +956,12 @@ router.post("/unified-auth", async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    console.log(`Unified auth attempt for email: ${email}`);
 
     // Check if user exists
     let user = await User.findOne({ email });
     
     if (user) {
       // User exists - handle login
-      console.log(`User exists, attempting login for: ${email}`);
       
       // Check if user is registered with Google
       if (user.googleId) {
@@ -1050,7 +1043,6 @@ router.post("/unified-auth", async (req, res) => {
         });
         
         // Password didn't match - check for collaborator login
-        console.log(`Password didn't match for user, checking for collaborator login for: ${email}`);
         
         // Check for collaborator login
         const parentUser = await User.findOne({ 
@@ -1058,13 +1050,11 @@ router.post("/unified-auth", async (req, res) => {
         });
         
         if (parentUser) {
-          console.log(`Found parent user for collaborator: ${email}`);
           
           // Find the matching collaborator
           const collaborator = parentUser.collaborators.find(c => c.email === email);
           
           if (collaborator) {
-            console.log(`Found collaborator: ${email}, status: ${collaborator.status}`);
             
             // Check if collaborator has password set up
             if (!collaborator.password) {
@@ -1171,7 +1161,6 @@ router.post("/unified-auth", async (req, res) => {
       }
     } else {
       // User doesn't exist - check for collaborator login first
-      console.log(`User doesn't exist, checking for collaborator login for: ${email}`);
       
       // Check for collaborator login
       const parentUser = await User.findOne({ 
@@ -1179,13 +1168,11 @@ router.post("/unified-auth", async (req, res) => {
       });
       
       if (parentUser) {
-        console.log(`Found parent user for collaborator: ${email}`);
         
         // Find the matching collaborator
         const collaborator = parentUser.collaborators.find(c => c.email === email);
         
         if (collaborator) {
-          console.log(`Found collaborator: ${email}, status: ${collaborator.status}`);
           
           // Check if collaborator has password set up
           if (!collaborator.password) {
@@ -1286,10 +1273,7 @@ router.post("/unified-auth", async (req, res) => {
       } else {
         console.log('No parent user found for collaborator email:', email);
       }
-      
-      // If we reach here, no collaborator found - proceed with signup
-      console.log(`No collaborator found, creating new account for: ${email}`);
-      
+        
       // Check if email exists in subscribers collection
       const subscriber = await Subscriber.findOne({ email });
       let subscriberData = null;
@@ -1379,13 +1363,10 @@ router.post("/check-account", async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    console.log(`Checking account existence for email: ${email}`);
-
     // Check if user exists in User collection
     const user = await User.findOne({ email });
     
     const exists = !!user;
-    console.log(`Account check result for ${email}: exists=${exists}`);
     
     res.json({ 
       exists: exists,

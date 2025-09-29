@@ -34,8 +34,6 @@ export const archiveExpiredAlerts = async () => {
       isLatest: true
     });
 
-    console.log(`Found ${expiredAlerts.length} alerts with expired end dates`);
-
     for (const alert of expiredAlerts) {
       try {
         // Update the alert status to archived
@@ -69,7 +67,6 @@ export const archiveExpiredAlerts = async () => {
           });
         }
 
-        console.log(`Archived alert ${alert._id} (${alert.title || 'No title'}) - End date: ${alert.expectedEnd}`);
       } catch (error) {
         console.error(`Error archiving alert ${alert._id}:`, error);
         result.errors.push({
