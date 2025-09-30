@@ -68,233 +68,231 @@ class AutomatedAlertGenerator {
   constructor() {
     // Use Gemini API instead of OpenAI
     this.geminiApiKey = process.env.GOOGLE_API_KEY;
-    this.systemPrompt = this.buildSystemPrompt();
     // Default Gemini model – can be tuned to "gemini-1.5-pro" if desired
     this.geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
   }
-  buildSystemPrompt() {
-    return `You are a travel disruption alert analyzer. Your job is to analyze real data from multiple sources and create accurate, timely alerts for travel professionals.
-  
-  REQUIREMENTS:
-  - INCLUDE alerts for events occurring TODAY (${new Date().toISOString().split('T')[0]}) - this is REQUIRED
-  - Include alerts for events occurring from TODAY up to 7 days ahead
-  - Include alerts that started before today but are still active (end within current week)
-  - Also include events that start within 7 days but may end up to 2 weeks from today (for multi-day events)
-  - Do NOT include past events that have already ended
-  - ALWAYS include at least 2-3 alerts for TODAY's events
-  - Analyze real-time data from trusted weather, transport, news, and event sources
-  - Create alerts only for actual, verified disruptions
-  - Use real dates, times, and locations directly from the source
-  - Include source attribution (e.g., BBC, Met Office, Transport Authority) for transparency
-  - Prioritize accuracy and relevancy over volume
-  - All generated alerts will be marked as "pending" for manual review before publication
-  
-  ALERT CATEGORIES & TYPES (USE EXACTLY AS SHOWN):
-  - Industrial Action: Strike, Work-to-Rule, Labor Dispute, Other
-  - Extreme Weather: Storm, Flooding, Heatwave, Wildfire, Snow, Other
-  - Infrastructure Failures: Power Outage, IT & System Failure, Transport Service Suspension, Road, Rail & Tram Closure, Repairs or Delays, Other
-  - Public Safety Incidents: Protest, Crime, Terror Threats, Travel Advisory, Other
-  - Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Events, Parades and Ceremonies, Other
-  
-  IMPORTANT: Use EXACT type names as listed above. Common mistakes to avoid:
-  - Use "Road, Rail & Tram Closure" NOT "Road Closure" or "Transport Closure"
-  - Use "IT & System Failure" NOT "IT Failure" or "System Failure"
-  - Use "Concerts and Stadium Events" NOT "Concert" or "Stadium Event"
-  
-  TARGET AUDIENCES:
-  Airline, Attraction, Car Rental, Cruise Line, DMO, Event Manager, Hotel, OTA, Tour Guide, Tour Operator, Travel Agency, Travel Media, Other
-  
-  IMPACT LEVELS (USE EXACTLY AS SHOWN):
-  - Low: Small disruptions with minimal travel impact
-  - Moderate: Noticeable disruptions affecting travel plans
-  - High: Major disruptions causing significant travel problems
-  
-  PRIORITY LEVELS (USE EXACTLY AS SHOWN):
-  - low: Low importance
-  - medium: Moderate importance  
-  - high: High importance
-    
-  ALERT STRUCTURE:
-  {
-    "alerts": [
-      {
-        "title": "Brief title based on real event",
-        "description": "Detailed description with source attribution",
-        "alertCategory": "Category from real data",
-        "alertType": "Specific type from category",
-        "impact": "Low|Moderate|High (use exactly one of these)",
-        "priority": "low|medium|high (use exactly one of these)",
-        "targetAudience": ["Relevant audiences"],
-        "recommendedAction": "What people should do based on real situation",
-        "expectedStart": "YYYY-MM-DDTHH:mm:ss (must be between today and next 7 days, include today)",
-        "expectedEnd": "YYYY-MM-DDTHH:mm:ss (can extend up to 2 weeks for multi-day events)",
-        "originCity": "City name",
-        "originCountry": "Country name",
-        "impactLocations": [
-          {
-            "city": "Affected city",
-            "country": "Country name",
-            "latitude": 55.9533,
-            "longitude": -3.1883
-          }
-        ],
-        "confidence": 0.95,
-        "source": "Credible source name (e.g., BBC, Met Office, Transport Authority)",
-        "sourceUrl": "Valid URL to source data for verification (required)"
-      }
-    ]
-  }
-  
-  IMPORTANT: 
-  - DO NOT include events outside the range of today through the next 7 days.
-  - MUST INCLUDE proper source attribution and valid URLs for verification.
-  - Every alert MUST have a valid sourceUrl field with a real, verifiable URL.
-  - ALL URLs MUST include the full protocol: https:// or http:// (e.g., https://www.bbc.com/news, NOT bbc.com)
-  - Use credible sources like BBC, Met Office, local transport authorities, official event pages.
-  - RESPOND WITH VALID JSON ONLY - no additional text, explanations, or markdown formatting.
-  - Ensure all JSON is properly formatted with correct quotes, commas, and brackets.
-  - All string values must be properly quoted and escaped.`;
+
+  // Prompt 1: Alert Generation System Instruction
+  buildPrompt1SystemInstruction(city, advisor) {
+    return `You are a highly specialized research analyst for the ${city} ${advisor} sector. Your sole task is to find high-impact, current, and sourced disruption events and quantify their threat.
+
+Scope of Disruptions: Industrial strikes, Extreme weather, Infrastructure failures, Public safety incidents, Major events/festivals, Aviation/airport disruptions, Global incidents with knock-on impact.
+
+Time Constraint: All events must be CURRENT or OCCURRING within the next 14 days. DO NOT include events that have already ended.
+
+Alert Mix Quota (AIM FOR): Aim for 5 distinct alerts.
+
+Aim for a minimum of 3 alerts that are local or national (e.g., local infrastructure, UK politics).
+
+Aim for a minimum of 2 alerts that are synthesized knock-on effects from a major global (e.g., Asia, North America) or continental (e.g., EU) incident.
+
+Source Mandate: For an alert to be included, you MUST provide at least one source name and a corresponding URL. Alerts without both source fields must be excluded.
+
+Output: The output must be a JSON object containing an array of 5 or fewer raw alerts.`;
   }
 
-  async generateAlertsForCity(cityKey) {
+  // Prompt 1: Alert Generation User Query
+  buildPrompt1UserQuery(city, advisor) {
+    return `Generate a list of high-impact alerts concerning the scope disruptions that will specifically disrupt the ${advisor} sector in ${city}.
+
+For each alert, provide:
+
+id: A unique string identifier.
+
+raw_headline: A short (max 10 words) factual headline.
+
+summary_detail: A 2-3 sentence summary of the event, origin, and expected duration.
+
+raw_start_date: The raw text date/time of the event start.
+
+raw_end_date: The raw text date/time of the event end.
+
+specific_impact_metric: A single quantifiable business metric (e.g., "24-Hour IT Downtime," "15% Revenue Risk," "48-Hour Water Loss").
+
+confidence_score: A numerical score between 0.0 and 1.0 reflecting the certainty of the disruption's impact and timing.
+
+source_name: The name of the primary source (e.g., BBC, The Financial Times).
+
+source_url: The URL link to the primary source.
+
+REQUIRED JSON SCHEMA
+
+{
+  "alerts": [
+    {
+      "id": "string",
+      "raw_headline": "string",
+      "summary_detail": "string",
+      "raw_start_date": "string",
+      "raw_end_date": "string",
+      "specific_impact_metric": "string",
+      "confidence_score": "number (0.0 to 1.0)",
+      "source_name": "string",
+      "source_url": "string"
+    }
+  ]
+}`;
+  }
+
+  // Prompt 2: Advisory Synthesis System Instruction
+  buildPrompt2SystemInstruction(city, advisor) {
+    const missionStatement = this.getMissionStatement(advisor);
+    const taxonomy = this.getTaxonomy();
+    
+    return `You are the senior ${advisor} AI Advisor for ${city}. You must strictly adhere to ALL quality guardrails listed below. Your goal is to create high-urgency, business-critical alerts that feel like a direct directive from a specialized consultant.
+
+Advisor Mission Statement: ${missionStatement}
+
+TAXONOMY: ${taxonomy}
+IMPACT_LEVELS: Low, Moderate, Severe
+
+--- NON-NEGOTIABLE QUALITY GUARDRAILS ---
+
+Quality Gate: You MUST exclude any input alert that has a 'confidence_score' LESS THAN 0.5.
+
+Source Gate: You MUST exclude any input alert where 'source_name' or 'source_url' is missing or empty.
+
+Header Mandate (Business-Focused): Must be 7-12 words, probabilistic, and structured as: [DISRUPTION SOURCE] + [IMPACT VERB/METRIC] + [LOCAL ASSET/CITY]. The header MUST NOT contain capitalization (except for proper nouns), hyphens, colons, or dashes.
+
+ISO Date Mandate: Convert raw dates to strictly formatted ISO 8601 strings (YYYY-MM-DDTHH:MM:SSZ).
+
+Issue Mandate (Mitigation Opportunity): Must be EXACTLY one sentence, max 20 words. The sentence must explicitly state how the disruption threatens the Advisor's core Mission Statement (e.g., "threatens guest satisfaction," "jeopardizes operational capacity").
+
+Recommendation Mandate (Imperative): Must be EXACTLY one sentence, actionable, and begin with an imperative verb (e.g., 'Notify...', 'Extend...', 'Prepare...').
+
+Global Link Mechanism Mandate: If the alert is a global or continental knock-on effect, the field 'Global_Link_Mechanism' MUST explicitly describe the physical or financial chain of causation for the disruption in ${city}.
+
+Other Fields: Category, Sub-category, Origin, and Impact Level must use EXACT values from the provided taxonomy.
+
+Output: The output must be a JSON array of the final, structured recommendation objects.`;
+  }
+
+  // Prompt 2: Advisory Synthesis User Query
+  buildPrompt2UserQuery(city, rawAlertsJson) {
+    return `Analyze the following raw alerts for ${city} and transform them into final, fully structured, high-quality recommendations, ensuring all guardrails are met. Exclude any alerts that fail the quality gates.
+
+Raw Alerts Input:
+${rawAlertsJson}
+
+REQUIRED JSON SCHEMA
+
+{
+  "recommendations": [
+    {
+      "alert_id": "string",
+      "Header": "string",
+      "Origin_Location": "string",
+      "Impact_Level": "enum(Low, Moderate, Severe)",
+      "Category": "enum(Industrial Action, Extreme Weather, etc.)",
+      "Sub_category": "string",
+      "confidence_score": "number (0.0 to 1.0)",
+      "Global_Link_Mechanism": "string (REQUIRED for global alerts, empty string for local/national)",
+      "start_date_time": "string (ISO 8601)",
+      "end_date_time": "string (ISO 8601)",
+      "Issue": "string",
+      "Recommendation": "string",
+      "source_name": "string",
+      "source_url": "string"
+    }
+  ]
+}`;
+  }
+
+  // Helper method to get mission statement based on advisor type
+  getMissionStatement(advisor) {
+    const missionStatements = {
+      'Hotel': 'Your core mission is to protect hotel revenue by guaranteeing guest satisfaction and maintaining full operational capacity.',
+      'DMO': 'Your core mission is to safeguard destination reputation and visitor experience while maintaining tourism revenue streams.',
+      'Tour Operator': 'Your core mission is to ensure seamless tour delivery and protect customer satisfaction while maintaining operational efficiency.',
+      'Travel Agency': 'Your core mission is to protect client travel investments and maintain service quality while ensuring customer satisfaction.',
+      'Airline': 'Your core mission is to maintain operational efficiency and passenger satisfaction while protecting revenue streams.',
+      'default': 'Your core mission is to protect business operations and maintain service quality while ensuring customer satisfaction.'
+    };
+    return missionStatements[advisor] || missionStatements.default;
+  }
+
+  // Helper method to get taxonomy
+  getTaxonomy() {
+    return `Industrial Action: Strike, Work-to-Rule, Labor Dispute, Other
+Extreme Weather: Storm, Flooding, Heatwave, Wildfire, Snow, Other
+Infrastructure Failures: Power Outage, IT & System Failure, Transport Service Suspension, Road, Rail & Tram Closure, Repairs or Delays, Other
+Public Safety Incidents: Protest, Crime, Terror Threats, Travel Advisory, Other
+Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Events, Parades and Ceremonies, Other`;
+  }
+
+  async generateAlertsForCity(cityKey, advisor = 'Hotel') {
     const city = CITIES[cityKey];
     if (!city) {
       throw new Error(`Unknown city: ${cityKey}`);
     }
 
-    const prompt = `Generate 10-15 realistic alerts for ${city.name}, UK for TODAY and the NEXT 7 DAYS.
-
-City: ${city.name}
-Coordinates: ${city.latitude}, ${city.longitude}
-Current Date: ${new Date().toISOString().split('T')[0]}
-
-Requirements:
-- Generate 10-15 unique alerts for events starting TODAY and in the next 7 days
-- ALWAYS include at least 2-3 alerts for TODAY (${new Date().toISOString().split('T')[0]})
-- Include events that start within 7 days but may end up to 2 weeks from today (for multi-day events)
-- Use real upcoming events and situations in ${city.name}
-- Include all categories: Industrial Action, Extreme Weather, Infrastructure Failures, Public Safety Incidents, Festivals and Events
-- Use valid coordinates for all locations
-- Start dates must be between TODAY (${new Date().toISOString().split('T')[0]}) and ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-- MUST include alerts starting TODAY (${new Date().toISOString().split('T')[0]})
-- End dates can extend up to ${new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} for multi-day events
-- Include alerts that started before today but end within the current week (active alerts)
-- Make alerts specific to ${city.name} and its upcoming events
-- MANDATORY: Each alert MUST include a valid sourceUrl with real, verifiable links (BBC, Met Office, transport authorities, official event pages)
-- ALL URLs MUST include full protocol: https:// or http:// (e.g., https://www.bbc.com/news, NOT bbc.com)
-- Include proper source attribution in the "source" field
-
-Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY valid JSON - no markdown, no explanations, no additional text.`;
-
     try {
-      const responseText = await this.callGemini(prompt);
-      const jsonContent = this.extractJsonFromResponse(responseText);
+      console.log(`Starting two-prompt alert generation for ${city.name} (${advisor} sector)...`);
+
+      // Step 1: Generate raw alerts using Prompt 1
+      const prompt1SystemInstruction = this.buildPrompt1SystemInstruction(city.name, advisor);
+      const prompt1UserQuery = this.buildPrompt1UserQuery(city.name, advisor);
       
-      // Debug: Log the extracted JSON content for troubleshooting
-      console.log(`Raw JSON content for ${city.name}:`, jsonContent.substring(0, 500) + '...');
+      console.log(`Calling Prompt 1 for ${city.name}...`);
+      const rawAlertsResponse = await this.callGeminiWithSystemInstruction(prompt1SystemInstruction, prompt1UserQuery);
+      const rawAlertsJson = this.extractJsonFromResponse(rawAlertsResponse);
       
-      let parsedResponse;
+      console.log(`Raw alerts JSON for ${city.name}:`, rawAlertsJson.substring(0, 500) + '...');
+      
+      let rawAlerts;
       try {
-        parsedResponse = JSON.parse(jsonContent);
+        rawAlerts = JSON.parse(rawAlertsJson);
       } catch (parseError) {
-        console.error(`JSON parsing error for ${city.name}:`, parseError.message);
-        console.error(`JSON content length: ${jsonContent.length}`);
-        console.error(`JSON content preview:`, jsonContent.substring(0, 1000));
-        
-        // Try to fix common JSON issues and retry
-        const fixedJson = this.fixCommonJsonIssues(jsonContent);
-        try {
-          parsedResponse = JSON.parse(fixedJson);
-          console.log(`Successfully parsed JSON after fixing issues for ${city.name}`);
-        } catch (retryError) {
-          console.error(`Failed to parse JSON even after fixing for ${city.name}:`, retryError.message);
-          
-                  // Try a more aggressive JSON cleanup
-        const aggressiveFix = this.aggressiveJsonFix(jsonContent);
-        try {
-          parsedResponse = JSON.parse(aggressiveFix);
-          console.log(`Successfully parsed JSON after aggressive fixing for ${city.name}`);
-        } catch (finalError) {
-          console.error(`Failed to parse JSON even after aggressive fixing for ${city.name}:`, finalError.message);
-          
-          // Try to extract just the alerts array if the main JSON is corrupted
-          const alertsMatch = jsonContent.match(/"alerts":\s*\[(.*?)\]/s);
-          if (alertsMatch) {
-            try {
-              // If the JSON is truncated, try to complete it properly
-              let alertsContent = alertsMatch[1];
-              
-              // If the alerts array is not properly closed, try to fix it
-              if (!alertsContent.trim().endsWith(']')) {
-                // Count opening and closing brackets to see if we need to close the array
-                const openBrackets = (alertsContent.match(/\[/g) || []).length;
-                const closeBrackets = (alertsContent.match(/\]/g) || []).length;
-                const openBraces = (alertsContent.match(/\{/g) || []).length;
-                const closeBraces = (alertsContent.match(/\}/g) || []).length;
-                
-                // If we have unclosed structures, try to close them
-                if (openBrackets > closeBrackets) {
-                  alertsContent += ']'.repeat(openBrackets - closeBrackets);
-                }
-                if (openBraces > closeBraces) {
-                  alertsContent += '}'.repeat(openBraces - closeBraces);
-                }
-                
-                // Ensure the array is properly closed
-                if (!alertsContent.trim().endsWith(']')) {
-                  alertsContent += ']';
-                }
-              }
-              
-              const alertsJson = `{"alerts": [${alertsContent}]}`;
-              const fixedAlertsJson = this.fixCommonJsonIssues(alertsJson);
-              parsedResponse = JSON.parse(fixedAlertsJson);
-              console.log(`Successfully parsed JSON by extracting and fixing alerts array for ${city.name}`);
-            } catch (extractError) {
-              console.error(`Failed to extract alerts array for ${city.name}:`, extractError.message);
-              throw new Error(`JSON parsing failed for ${city.name}: ${parseError.message}`);
-            }
-          } else {
-            throw new Error(`JSON parsing failed for ${city.name}: ${parseError.message}`);
-          }
-        }
-        }
+        console.error(`JSON parsing error for raw alerts in ${city.name}:`, parseError.message);
+        const fixedJson = this.fixCommonJsonIssues(rawAlertsJson);
+        rawAlerts = JSON.parse(fixedJson);
       }
 
-      if (!parsedResponse.alerts || !Array.isArray(parsedResponse.alerts)) {
-        throw new Error('Invalid response format from Gemini API');
+      if (!rawAlerts.alerts || !Array.isArray(rawAlerts.alerts)) {
+        throw new Error('Invalid raw alerts format from Prompt 1');
       }
 
-      // Fix URLs in the parsed alerts
-      parsedResponse.alerts = parsedResponse.alerts.map(alert => {
-        if (alert.sourceUrl && !alert.sourceUrl.startsWith('http://') && !alert.sourceUrl.startsWith('https://')) {
-          console.log(`Fixing URL in parsed alert: ${alert.title}. Original: ${alert.sourceUrl}`);
-          alert.sourceUrl = `https://${alert.sourceUrl}`;
-          console.log(`Fixed URL: ${alert.sourceUrl}`);
-        }
-        return alert;
-      });
+      console.log(`Generated ${rawAlerts.alerts.length} raw alerts for ${city.name}`);
 
-      // Validate the number of alerts
-      if (parsedResponse.alerts.length < 10) {
-        console.warn(`Only ${parsedResponse.alerts.length} alerts generated for ${city.name}, retrying...`);
-        // Retry once with a more explicit prompt
-        const retryPrompt = `Generate 10-15 alerts for ${city.name} for the next 7 days. You only created ${parsedResponse.alerts.length}. Include all categories: Industrial Action, Extreme Weather, Infrastructure Failures, Public Safety Incidents, Festivals and Events. All dates must be in the next 7 days. MANDATORY: Each alert MUST include a valid sourceUrl with real, verifiable links. Return JSON with 10-15 alerts.`;
-
-        const retryResponseText = await this.callGemini(retryPrompt);
-        const retryJsonContent = this.extractJsonFromResponse(retryResponseText);
-        const retryParsedResponse = JSON.parse(retryJsonContent);
-
-        if (retryParsedResponse.alerts && Array.isArray(retryParsedResponse.alerts) && retryParsedResponse.alerts.length >= 10) {
-          console.log(`Retry successful: ${retryParsedResponse.alerts.length} alerts generated for ${city.name}`);
-          parsedResponse.alerts = retryParsedResponse.alerts;
-        } else {
-          console.warn(`Retry failed for ${city.name}, using original ${parsedResponse.alerts.length} alerts`);
-        }
+      // Step 2: Transform raw alerts into structured recommendations using Prompt 2
+      const prompt2SystemInstruction = this.buildPrompt2SystemInstruction(city.name, advisor);
+      const prompt2UserQuery = this.buildPrompt2UserQuery(city.name, JSON.stringify(rawAlerts));
+      
+      console.log(`Calling Prompt 2 for ${city.name}...`);
+      const recommendationsResponse = await this.callGeminiWithSystemInstruction(prompt2SystemInstruction, prompt2UserQuery);
+      const recommendationsJson = this.extractJsonFromResponse(recommendationsResponse);
+      
+      console.log(`Recommendations JSON for ${city.name}:`, recommendationsJson.substring(0, 500) + '...');
+      
+      let recommendations;
+      try {
+        recommendations = JSON.parse(recommendationsJson);
+      } catch (parseError) {
+        console.error(`JSON parsing error for recommendations in ${city.name}:`, parseError.message);
+        const fixedJson = this.fixCommonJsonIssues(recommendationsJson);
+        recommendations = JSON.parse(fixedJson);
       }
 
-      return parsedResponse.alerts.map(alert => ({
-        ...alert,
+      if (!recommendations.recommendations || !Array.isArray(recommendations.recommendations)) {
+        throw new Error('Invalid recommendations format from Prompt 2');
+      }
+
+      console.log(`Generated ${recommendations.recommendations.length} structured recommendations for ${city.name}`);
+
+      // Transform recommendations back to the expected alert format
+      return recommendations.recommendations.map(recommendation => ({
+        title: recommendation.Header,
+        description: recommendation.Issue,
+        alertCategory: recommendation.Category,
+        alertType: recommendation.Sub_category,
+        impact: recommendation.Impact_Level,
+        priority: this.mapImpactToPriority(recommendation.Impact_Level),
+        targetAudience: [advisor],
+        recommendedAction: recommendation.Recommendation,
+        expectedStart: recommendation.start_date_time,
+        expectedEnd: recommendation.end_date_time,
+        originCity: city.name,
+        originCountry: city.country,
         originLatitude: city.latitude,
         originLongitude: city.longitude,
         originPlaceId: city.placeId,
@@ -302,21 +300,84 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
           type: 'Point',
           coordinates: [city.longitude, city.latitude]
         },
-        // Ensure impactLocations have proper coordinates
-        impactLocations: (alert.impactLocations || []).map(location => ({
-          ...location,
-          latitude: location.latitude || city.latitude,
-          longitude: location.longitude || city.longitude,
+        impactLocations: [{
+          city: city.name,
+          country: city.country,
+          latitude: city.latitude,
+          longitude: city.longitude,
           location: {
             type: 'Point',
-            coordinates: [location.longitude || city.longitude, location.latitude || city.latitude]
+            coordinates: [city.longitude, city.latitude]
           }
-        }))
+        }],
+        confidence: recommendation.confidence_score,
+        source: recommendation.source_name,
+        sourceUrl: recommendation.source_url,
+        globalLinkMechanism: recommendation.Global_Link_Mechanism || '',
+        alertId: recommendation.alert_id
       }));
+
     } catch (error) {
       console.error(`Error generating alerts for ${city.name}:`, error);
       throw error;
     }
+  }
+
+  // Helper method to map impact level to priority
+  mapImpactToPriority(impactLevel) {
+    const mapping = {
+      'Low': 'low',
+      'Moderate': 'medium',
+      'Severe': 'high'
+    };
+    return mapping[impactLevel] || 'medium';
+  }
+
+  async callGeminiWithSystemInstruction(systemInstruction, userPrompt) {
+    if (!this.geminiApiKey) {
+      throw new Error('Gemini API key (GOOGLE_API_KEY) not configured');
+    }
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`;
+
+    const body = {
+      system_instruction: {
+        role: 'system',
+        parts: [{ text: systemInstruction }]
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: userPrompt }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.3, // Lower temperature for more consistent JSON formatting
+        topP: 0.8,
+        topK: 20,
+        maxOutputTokens: 8192 // Increased to handle longer JSON responses
+      }
+    };
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API error: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('Gemini API returned no text content');
+    }
+    return text;
   }
 
   async callGemini(userPrompt) {
@@ -327,11 +388,6 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`;
 
     const body = {
-      // Provide system instruction separately to steer model behavior
-      system_instruction: {
-        role: 'system',
-        parts: [{ text: this.systemPrompt }]
-      },
       contents: [
         {
           role: 'user',
@@ -949,8 +1005,8 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
     return 'pending';
   }
 
-  async generateAlertsForAllCities() {
-    console.log('Starting automated alert generation for all cities...');
+  async generateAlertsForAllCities(advisor = 'Hotel') {
+    console.log(`Starting automated alert generation for all cities (${advisor} sector)...`);
     
     const processStartTime = new Date();
     const results = {
@@ -963,10 +1019,10 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
     };
 
     for (const [cityKey, city] of Object.entries(CITIES)) {
-      console.log(`Generating alerts for ${city.name}...`);
+      console.log(`Generating alerts for ${city.name} (${advisor} sector)...`);
 
       try {
-        const alerts = await this.generateAlertsForCity(cityKey);
+        const alerts = await this.generateAlertsForCity(cityKey, advisor);
         console.log(`Generated ${alerts.length} alerts for ${city.name}`);
 
         results.cityResults[city.name] = {
@@ -1032,15 +1088,16 @@ Return valid JSON with 10-15 alerts in the array. IMPORTANT: Respond with ONLY v
     const processDuration = processEndTime - processStartTime;
 
     // Log the results
-    await this.logGenerationResults(results, processStartTime, processEndTime, processDuration);
+    await this.logGenerationResults(results, processStartTime, processEndTime, processDuration, advisor);
 
     console.log('Automated alert generation completed:', results);
     return results;
   }
 
-  async logGenerationResults(results, processStartTime, processEndTime, processDuration) {
+  async logGenerationResults(results, processStartTime, processEndTime, processDuration, advisor = 'Hotel') {
     try {
       await Logger.logSystem('automated_alert_generation_completed', {
+        advisorSector: advisor,
         totalAlertsGenerated: results.total,
         totalApproved: results.approved,
         totalPending: results.pending,
@@ -1069,7 +1126,17 @@ const scheduleAutomatedAlerts = () => {
   // cron.schedule('*/1 * * * *', async () => {
     console.log('Starting scheduled automated alert generation...');
     try {
-      await generator.generateAlertsForAllCities();
+      // Generate alerts for different advisor types
+      const advisorTypes = ['Hotel', 'DMO', 'Tour Operator', 'Travel Agency', 'Airline'];
+      
+      for (const advisor of advisorTypes) {
+        console.log(`Generating alerts for ${advisor} sector...`);
+        try {
+          await generator.generateAlertsForAllCities(advisor);
+        } catch (error) {
+          console.error(`Error generating alerts for ${advisor} sector:`, error);
+        }
+      }
     } catch (error) {
       console.error('Error in scheduled alert generation:', error);
     }
