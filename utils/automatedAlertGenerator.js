@@ -74,11 +74,16 @@ class AutomatedAlertGenerator {
 
   // Prompt 1: Alert Generation System Instruction
   buildPrompt1SystemInstruction(city, advisor) {
+    const currentDate = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+    const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 15 days from now
+    
     return `You are a highly specialized research analyst for the ${city} ${advisor} sector. Your sole task is to find high-impact, current, and sourced disruption events and quantify their threat.
+
+IMPORTANT: Today is ${currentDate}. All events must be CURRENT (happening today) or OCCURRING between ${currentDate} and ${futureDate}. DO NOT include events from 2024 or earlier. DO NOT include events that have already ended.
 
 Scope of Disruptions: Industrial strikes, Extreme weather, Infrastructure failures, Public safety incidents, Major events/festivals, Aviation/airport disruptions, Global incidents with knock-on impact.
 
-Time Constraint: All events must be CURRENT or OCCURRING within the next 14 days. DO NOT include events that have already ended.
+Time Constraint: All events must be CURRENT or OCCURRING within the next 15 days from today (${currentDate}). Focus on events happening in 2025, not historical events from 2024 or earlier.
 
 Alert Mix Quota (AIM FOR): Aim for 5 distinct alerts.
 
@@ -93,7 +98,11 @@ Output: The output must be a JSON object containing an array of 5 or fewer raw a
 
   // Prompt 1: Alert Generation User Query
   buildPrompt1UserQuery(city, advisor) {
+    const currentDate = new Date().toISOString().split('T')[0];
+    
     return `Generate a list of high-impact alerts concerning the scope disruptions that will specifically disrupt the ${advisor} sector in ${city}.
+
+CRITICAL: Today is ${currentDate}. Only include events that are happening TODAY or in the next 15 days. Do NOT include events from 2024 or earlier. Focus on current and upcoming events in 2025.
 
 For each alert, provide:
 
@@ -103,9 +112,9 @@ raw_headline: A short (max 10 words) factual headline.
 
 summary_detail: A 2-3 sentence summary of the event, origin, and expected duration.
 
-raw_start_date: The raw text date/time of the event start.
+raw_start_date: The raw text date/time of the event start (must be ${currentDate} or later).
 
-raw_end_date: The raw text date/time of the event end.
+raw_end_date: The raw text date/time of the event end (must be ${currentDate} or later).
 
 specific_impact_metric: A single quantifiable business metric (e.g., "24-Hour IT Downtime," "15% Revenue Risk," "48-Hour Water Loss").
 
@@ -169,7 +178,11 @@ Output: The output must be a JSON array of the final, structured recommendation 
 
   // Prompt 2: Advisory Synthesis User Query
   buildPrompt2UserQuery(city, rawAlertsJson) {
+    const currentDate = new Date().toISOString().split('T')[0];
+    
     return `Analyze the following raw alerts for ${city} and transform them into final, fully structured, high-quality recommendations, ensuring all guardrails are met. Exclude any alerts that fail the quality gates.
+
+IMPORTANT: Today is ${currentDate}. Only process alerts that are happening today or in the next 15 days. Reject any alerts with dates from 2024 or earlier.
 
 Raw Alerts Input:
 ${rawAlertsJson}
@@ -237,13 +250,11 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
       const rawAlertsResponse = await this.callGeminiWithSystemInstruction(prompt1SystemInstruction, prompt1UserQuery);
       const rawAlertsJson = this.extractJsonFromResponse(rawAlertsResponse);
       
-      console.log(`Raw alerts JSON for ${city.name}:`, rawAlertsJson.substring(0, 500) + '...');
       
       let rawAlerts;
       try {
         rawAlerts = JSON.parse(rawAlertsJson);
       } catch (parseError) {
-        console.error(`JSON parsing error for raw alerts in ${city.name}:`, parseError.message);
         const fixedJson = this.fixCommonJsonIssues(rawAlertsJson);
         rawAlerts = JSON.parse(fixedJson);
       }
@@ -262,13 +273,11 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
       const recommendationsResponse = await this.callGeminiWithSystemInstruction(prompt2SystemInstruction, prompt2UserQuery);
       const recommendationsJson = this.extractJsonFromResponse(recommendationsResponse);
       
-      console.log(`Recommendations JSON for ${city.name}:`, recommendationsJson.substring(0, 500) + '...');
       
       let recommendations;
       try {
         recommendations = JSON.parse(recommendationsJson);
       } catch (parseError) {
-        console.error(`JSON parsing error for recommendations in ${city.name}:`, parseError.message);
         const fixedJson = this.fixCommonJsonIssues(recommendationsJson);
         recommendations = JSON.parse(fixedJson);
       }
@@ -276,8 +285,6 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
       if (!recommendations.recommendations || !Array.isArray(recommendations.recommendations)) {
         throw new Error('Invalid recommendations format from Prompt 2');
       }
-
-      console.log(`Generated ${recommendations.recommendations.length} structured recommendations for ${city.name}`);
 
       // Transform recommendations back to the expected alert format
       return recommendations.recommendations.map(recommendation => ({
@@ -629,7 +636,6 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
     };
 
     if (alertData.alertType && typeMappings[alertData.alertType]) {
-      console.log(`Fixing alert type for "${alertData.title}": "${alertData.alertType}" → "${typeMappings[alertData.alertType]}"`);
       alertData.alertType = typeMappings[alertData.alertType];
     }
 
@@ -651,10 +657,8 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
     };
 
     if (alertData.impact && impactMappings[alertData.impact]) {
-      console.log(`Fixing impact value for "${alertData.title}": "${alertData.impact}" → "${impactMappings[alertData.impact]}"`);
       alertData.impact = impactMappings[alertData.impact];
     } else if (alertData.impact && !SEVERITY_LEVELS.includes(alertData.impact)) {
-      console.log(`Invalid impact value for "${alertData.title}": "${alertData.impact}", setting to "Moderate"`);
       alertData.impact = 'Moderate';
     }
 
@@ -806,6 +810,21 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
       return false;
     }
 
+    // Check for old dates (2024 or earlier) - reject immediately
+    const currentYear = new Date().getFullYear();
+    if (alertData.expectedStart) {
+      const startYear = new Date(alertData.expectedStart).getFullYear();
+      if (startYear < currentYear) {
+        return false;
+      }
+    }
+    if (alertData.expectedEnd) {
+      const endYear = new Date(alertData.expectedEnd).getFullYear();
+      if (endYear < currentYear) {
+        return false;
+      }
+    }
+
     // Fix common alert type mismatches
     alertData = this.fixAlertTypeMismatches(alertData);
     
@@ -814,33 +833,28 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
 
     // Validate source URL is provided and is a valid URL
     if (!alertData.sourceUrl) {
-      console.warn(`Missing sourceUrl for alert: ${alertData.title}`);
       return false;
     }
 
     // Fix URLs that are missing protocols
     if (alertData.sourceUrl && !alertData.sourceUrl.startsWith('http://') && !alertData.sourceUrl.startsWith('https://')) {
-      console.log(`Fixing URL for alert: ${alertData.title}. Original: ${alertData.sourceUrl}`);
       alertData.sourceUrl = `https://${alertData.sourceUrl}`;
-      console.log(`Fixed URL: ${alertData.sourceUrl}`);
     }
 
     try {
       new URL(alertData.sourceUrl);
     } catch (error) {
-      console.warn(`Invalid sourceUrl for alert: ${alertData.title}. URL: ${alertData.sourceUrl}`);
       return false;
     }
 
-    // Validate dates - allow alerts that are active during the current week
+    // Validate dates - allow alerts that overlap with the next 15 days
     // This includes:
-    // 1. Alerts that start today or in the next 7 days
-    // 2. Alerts that started before today but end within the current week
-    // 3. Alerts that span across weeks (end date can be up to 2 weeks from now)
+    // 1. Alerts that start within the next 15 days (regardless of end date)
+    // 2. Alerts that end within the next 15 days (regardless of start date)
+    // 3. Alerts that started before today but end within the next 15 days
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
-    const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const twoWeeksFromNow = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const fifteenDaysFromNow = new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000);
 
     if (alertData.expectedStart && alertData.expectedEnd) {
       const startDate = new Date(alertData.expectedStart);
@@ -848,55 +862,52 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
       const endDate = new Date(alertData.expectedEnd);
       const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
       
-      // Check if the alert is active during the current week
-      const alertStartsInCurrentWeek = startDateOnly >= today && startDateOnly <= sevenDaysFromNow;
-      const alertEndsInCurrentWeek = endDateOnly >= today && endDateOnly <= sevenDaysFromNow;
-      const alertSpansCurrentWeek = startDateOnly < today && endDateOnly >= today;
-      const alertSpansFutureWeeks = startDateOnly >= today && endDateOnly <= twoWeeksFromNow;
+      // Check if the alert overlaps with the next 15 days
+      // Include alerts that:
+      // 1. Start within the next 15 days (regardless of end date)
+      // 2. End within the next 15 days (regardless of start date)
+      // 3. Span across the 15-day period (start before today, end after today)
+      const alertStartsInNext15Days = startDateOnly >= today && startDateOnly <= fifteenDaysFromNow;
+      const alertEndsInNext15Days = endDateOnly >= today && endDateOnly <= fifteenDaysFromNow;
+      const alertSpansNext15Days = startDateOnly < today && endDateOnly >= today;
       
-      if (!alertStartsInCurrentWeek && !alertEndsInCurrentWeek && !alertSpansCurrentWeek && !alertSpansFutureWeeks) {
-        console.warn(`Alert not active during current week: ${alertData.title}. Start: ${startDateOnly}, End: ${endDateOnly}, Today: ${today}, Week end: ${sevenDaysFromNow}`);
-        return false;
+      if (!alertStartsInNext15Days && !alertEndsInNext15Days && !alertSpansNext15Days) {
+       return false;
       }
       
       // Log which condition was met
-      if (alertStartsInCurrentWeek) {
-        console.log(`Alert starts in current week: ${alertData.title} (${startDateOnly})`);
-      } else if (alertEndsInCurrentWeek) {
-        console.log(`Alert ends in current week: ${alertData.title} (${endDateOnly})`);
-      } else if (alertSpansCurrentWeek) {
-        console.log(`Alert spans current week: ${alertData.title} (${startDateOnly} to ${endDateOnly})`);
-      } else if (alertSpansFutureWeeks) {
-        console.log(`Alert spans future weeks: ${alertData.title} (${startDateOnly} to ${endDateOnly})`);
+      if (alertStartsInNext15Days) {
+        // console.log(`Alert starts in next 15 days: ${alertData.title} (${startDateOnly})`);
+
+      } else if (alertEndsInNext15Days) {
+        // console.log(`Alert ends in next 15 days: ${alertData.title} (${endDateOnly})`);
+      } else if (alertSpansNext15Days) {
+        // console.log(`Alert spans next 15 days: ${alertData.title} (${startDateOnly} to ${endDateOnly})`);
       }
     } else if (alertData.expectedStart) {
-      // If only start date is provided, it must be in the current week
+      // If only start date is provided, it must be within the next 15 days
       const startDate = new Date(alertData.expectedStart);
       const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
       
-      if (startDateOnly < today || startDateOnly > sevenDaysFromNow) {
-        console.warn(`Invalid start date for alert: ${alertData.title}. Date: ${startDateOnly}, must be between ${today} and ${sevenDaysFromNow}`);
+      if (startDateOnly < today || startDateOnly > fifteenDaysFromNow) {
         return false;
       }
     } else if (alertData.expectedEnd) {
-      // If only end date is provided, it must be in the current week
+      // If only end date is provided, it must be within the next 15 days
       const endDate = new Date(alertData.expectedEnd);
       const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
       
-      if (endDateOnly < today || endDateOnly > sevenDaysFromNow) {
-        console.warn(`Invalid end date for alert: ${alertData.title}. Date: ${endDateOnly}, must be between ${today} and ${sevenDaysFromNow}`);
+      if (endDateOnly < today || endDateOnly > fifteenDaysFromNow) {
         return false;
       }
     }
 
     // Validate alert category and type
     if (!ALERT_CATEGORIES[alertData.alertCategory]) {
-      console.warn(`Invalid alert category: ${alertData.alertCategory}`);
       return false;
     }
 
     if (alertData.alertType && !ALERT_CATEGORIES[alertData.alertCategory].includes(alertData.alertType)) {
-      console.warn(`Invalid alert type: ${alertData.alertType} for category: ${alertData.alertCategory}`);
       return false;
     }
 
@@ -904,10 +915,7 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
     if (alertData.targetAudience && Array.isArray(alertData.targetAudience)) {
       const invalidAudiences = alertData.targetAudience.filter(audience => !TARGET_AUDIENCES.includes(audience));
       if (invalidAudiences.length > 0) {
-        console.warn(`Invalid target audiences for alert "${alertData.title}": ${invalidAudiences.join(', ')}`);
-        // Remove invalid audiences
         alertData.targetAudience = alertData.targetAudience.filter(audience => TARGET_AUDIENCES.includes(audience));
-        console.log(`Fixed target audiences for "${alertData.title}": ${alertData.targetAudience.join(', ')}`);
       }
     }
 
@@ -915,10 +923,7 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
 
     // Validate priority level
     if (alertData.priority && !PRIORITY_LEVELS.includes(alertData.priority)) {
-      console.warn(`Invalid priority level for alert "${alertData.title}": ${alertData.priority}`);
-      // Set default priority
       alertData.priority = 'medium';
-      console.log(`Fixed priority level for "${alertData.title}": ${alertData.priority}`);
     }
 
     // Validate impactLocations
@@ -1037,7 +1042,6 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
           try {
             // Validate alert data before processing
             if (!this.validateAlertData(alertData, city)) {
-              console.warn(`Skipping invalid alert data for ${city.name}:`, alertData);
               results.errors++;
               results.cityResults[city.name].errors++;
               continue;
@@ -1066,13 +1070,11 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
 
             results.total++;
           } catch (error) {
-            console.error(`Error processing alert for ${city.name}:`, error);
             results.errors++;
             results.cityResults[city.name].errors++;
           }
         }
       } catch (error) {
-        console.error(`Error generating alerts for ${city.name}:`, error);
         results.errors++;
         results.cityResults[city.name] = {
           generated: 0,
@@ -1123,7 +1125,7 @@ const scheduleAutomatedAlerts = () => {
 
   // Schedule for Monday and Thursday at 8:00 AM Edinburgh time
   cron.schedule('0 8 * * 1,4', async () => {
-  // cron.schedule('*/1 * * * *', async () => {
+  // cron.schedule('22 * * * *', async () => {
     console.log('Starting scheduled automated alert generation...');
     try {
       // Generate alerts for different advisor types

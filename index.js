@@ -26,8 +26,7 @@ import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
 import { scheduleAutomatedAlerts } from "./utils/automatedAlertGenerator.js";
 import { scheduleAutoUpdates } from "./utils/autoUpdateSystem.js";
 import { scheduleAlertArchiving, setSocketIO } from "./utils/alertArchiver.js";
-import optionalAuth from "./middleware/optionalAuth.js";
-import Logger from "./utils/logger.js";
+import { optionalAuth } from "./middleware/auth.js";
 
 import path from "path";
 import { fileURLToPath } from "url";

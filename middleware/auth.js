@@ -1,50 +1,14 @@
-import jwt from "jsonwebtoken";
-import User from "../models/User.js";
-
-import dotenv from "dotenv";
-dotenv.config();
+import tokenManager from "../utils/tokenManager.js";
+import Logger from "../utils/logger.js";
 
 /**
- * Extract and verify JWT token against database
+ * Extract and verify JWT token using the global token manager
  */
 const getTokenData = async (req) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
-
-  const token = authHeader.split(" ")[1];
-  if (!token) return null;
-
   try {
-    // First verify the token signature
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Then verify the user exists in database and is active
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      return null;
-    }
-
-    // Check if user is active and not restricted/deleted
-    if (user.status !== 'active') {
-      return null;
-    }
-
-    // For collaborators, verify the collaborator still exists and is active
-    if (decoded.isCollaborator) {
-      const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
-      if (!collaborator || collaborator.status !== 'active') {
-        return null;
-      }
-      
-      // Add fresh collaborator data to the decoded token
-      decoded.collaboratorData = collaborator;
-    }
-
-    // Add fresh user data to the decoded token
-    decoded.userData = user;
-    
-    return decoded;
-  } catch (err) {
+    return await tokenManager.validateRequest(req, { verifyDatabase: true });
+  } catch (error) {
+    console.error('Token validation error:', error);
     return null;
   }
 };
@@ -220,4 +184,93 @@ export const authenticateSubscription = async (req, res, next) => {
   }
 
   next();
+};
+
+/**
+ * Middleware to handle token refresh
+ * Usage: refreshToken
+ */
+export const refreshToken = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ message: "Refresh token is required" });
+    }
+
+    const newTokens = await tokenManager.refreshAccessToken(refreshToken);
+    
+    if (!newTokens) {
+      return res.status(401).json({ message: "Invalid or expired refresh token" });
+    }
+
+    req.newTokens = newTokens;
+    next();
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ message: "Server error during token refresh" });
+  }
+};
+
+/**
+ * Middleware to handle token blacklisting (logout)
+ * Usage: logout
+ */
+export const logout = async (req, res, next) => {
+  try {
+    const token = tokenManager.extractTokenFromRequest(req);
+    const decoded = await getTokenData(req);
+    
+    if (token) {
+      // Blacklist the current token
+      tokenManager.blacklistToken(token, decoded?.tokenId);
+      
+      // Log logout action
+      if (decoded) {
+        try {
+          await Logger.log(req, 'user_logout', {
+            userId: decoded.userId,
+            userEmail: decoded.email,
+            isCollaborator: decoded.isCollaborator
+          });
+        } catch (logError) {
+          console.error('Error logging logout:', logError);
+        }
+      }
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ message: "Server error during logout" });
+  }
+};
+
+/**
+ * Middleware to validate token without database verification (for performance)
+ * Usage: validateTokenOnly
+ */
+export const validateTokenOnly = async (req, res, next) => {
+  try {
+    const decoded = await tokenManager.validateRequest(req, { verifyDatabase: false });
+    
+    if (!decoded) {
+      return res.status(401).json({ message: "Invalid or missing token" });
+    }
+
+    req.userId = decoded.userId;
+    req.user = decoded.userData;
+    
+    if (decoded.isCollaborator) {
+      req.isCollaborator = true;
+      req.collaboratorEmail = decoded.collaboratorEmail;
+      req.collaboratorRole = decoded.collaboratorRole;
+      req.collaborator = decoded.collaboratorData;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(401).json({ message: "Invalid token" });
+  }
 };

@@ -8,42 +8,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import sendCollaboratorInvitation from '../utils/emailTemplates/collaboratorInvitation.js';
 
-// Helper function to generate JWT token with comprehensive user data
-const generateUserToken = (user, collaborator = null) => {
-  const tokenPayload = {
-    userId: user._id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    isVerified: user.isVerified,
-    isPremium: user.isPremium,
-    role: user.role,
-    status: user.status,
-    lastLogin: user.lastLogin,
-    weeklyForecastSubscribed: user.weeklyForecastSubscribed,
-    weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
-    lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
-    company: user.company,
-    preferences: user.preferences,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
-  };
-
-  // Add collaborator information if present
-  if (collaborator) {
-    tokenPayload.isCollaborator = true;
-    tokenPayload.collaboratorEmail = collaborator.email;
-    tokenPayload.collaboratorRole = collaborator.role;
-    tokenPayload.collaboratorName = collaborator.name;
-    tokenPayload.collaboratorStatus = collaborator.status;
-  } else {
-    tokenPayload.isCollaborator = false;
-  }
-
-  return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-    expiresIn: "24h",
-  });
-};
+import tokenManager from "../utils/tokenManager.js";
 
 const router = express.Router();
 
@@ -848,7 +813,7 @@ router.post('/collaborators/accept-invitation', async (req, res) => {
     await user.save();
     
     // Generate a JWT token with comprehensive user and collaborator data
-    const jwtToken = generateUserToken(user, collaborator);
+    const { accessToken: jwtToken } = tokenManager.generateTokens(user, collaborator);
     
     res.json({
       message: 'Invitation accepted successfully',

@@ -13,42 +13,8 @@ import SibApiV3Sdk from "sib-api-v3-sdk";
 dotenv.config();
 import Subscriber from "../models/subscribers.js";
 
-// Helper function to generate JWT token with comprehensive user data
-const generateUserToken = (user, collaborator = null) => {
-  const tokenPayload = {
-    userId: user._id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    isVerified: user.isVerified,
-    isPremium: user.isPremium,
-    role: user.role,
-    status: user.status,
-    lastLogin: user.lastLogin,
-    weeklyForecastSubscribed: user.weeklyForecastSubscribed,
-    weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
-    lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
-    company: user.company,
-    preferences: user.preferences,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
-  };
-
-  // Add collaborator information if present
-  if (collaborator) {
-    tokenPayload.isCollaborator = true;
-    tokenPayload.collaboratorEmail = collaborator.email;
-    tokenPayload.collaboratorRole = collaborator.role;
-    tokenPayload.collaboratorName = collaborator.name;
-    tokenPayload.collaboratorStatus = collaborator.status;
-  } else {
-    tokenPayload.isCollaborator = false;
-  }
-
-  return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-    expiresIn: "24h",
-  });
-};
+import tokenManager from "../utils/tokenManager.js";
+import { refreshToken, logout, authenticateRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -249,7 +215,7 @@ router.post("/verify-email", async (req, res) => {
     user.otpExpiry = undefined;
     await user.save();
 
-    const token = generateUserToken(user);
+    const { accessToken: token } = tokenManager.generateTokens(user);
     
     // Log email verification
     await Logger.log(req, 'email_verified', {
@@ -540,7 +506,7 @@ router.post("/login", async (req, res) => {
         await user.save();
 
         // Generate JWT with comprehensive user data
-        const token = generateUserToken(user);
+        const { accessToken: token } = tokenManager.generateTokens(user);
         
         // Log successful login
         await Logger.log(req, 'login', {
@@ -630,7 +596,7 @@ router.post("/login", async (req, res) => {
             await parentUser.save();
             
             // Generate JWT with comprehensive user and collaborator info
-            const token = generateUserToken(parentUser, collaborator);
+            const { accessToken: token } = tokenManager.generateTokens(parentUser, collaborator);
             
             // Log successful collaborator login
             await Logger.log(req, 'login', {
@@ -732,7 +698,8 @@ router.get(
       await user.save();
     }
 
-    const token = generateUserToken(req.user);
+    // Generate token using tokenManager
+    const { accessToken: token } = tokenManager.generateTokens(user);
     res.redirect(`https://tourprism.com/auth/google/callback?token=${token}`);
   }
 );
@@ -779,7 +746,8 @@ router.get(
       await user.save();
     }
 
-    const token = generateUserToken(req.user);
+    // Generate token using tokenManager
+    const { accessToken: token } = tokenManager.generateTokens(user);
     res.redirect(`https://tourprism.com/auth/microsoft/callback?token=${token}`);
   }
 );
@@ -787,18 +755,18 @@ router.get(
 // Token Verification Route - verifies token against database
 router.get("/verify-token", async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = await tokenManager.verifyToken(token, { verifyDatabase: true });
     
-    // Verify user exists in database and is active
-    const user = await User.findById(decoded.userId).select("-password");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!decoded || !decoded.userData) {
+      return res.status(401).json({ message: "Invalid token" });
     }
+
+    const user = decoded.userData;
 
     // Check if user is active
     if (user.status !== 'active') {
@@ -806,8 +774,8 @@ router.get("/verify-token", async (req, res) => {
     }
 
     // If this is a collaborator token, verify collaborator
-    if (decoded.isCollaborator) {
-      const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
+    if (decoded.isCollaborator && decoded.collaboratorData) {
+      const collaborator = decoded.collaboratorData;
       
       if (!collaborator || collaborator.status !== 'active') {
         return res.status(404).json({ message: "Collaborator not found or not active" });
@@ -841,8 +809,13 @@ router.get("/verify-token", async (req, res) => {
       });
     }
 
-    // Regular user - return full user data
-    res.json(user);
+    // Regular user - return full user data (remove password field)
+    const userResponse = user.toObject ? user.toObject() : user;
+    delete userResponse.password;
+    delete userResponse.otp;
+    delete userResponse.otpExpiry;
+    
+    res.json(userResponse);
   } catch (error) {
     console.error("Token verification error:", error);
     res.status(401).json({ message: "Invalid token" });
@@ -852,25 +825,22 @@ router.get("/verify-token", async (req, res) => {
 // User Profile Route
 router.get("/user/profile", async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select("-password");
+    const decoded = await tokenManager.verifyToken(token, { verifyDatabase: true });
     
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!decoded || !decoded.userData) {
+      return res.status(401).json({ message: "Invalid token" });
     }
 
+    const user = decoded.userData;
+
     // If this is a collaborator token
-    if (decoded.isCollaborator) {
-      const collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
-      
-      if (!collaborator) {
-        return res.status(404).json({ message: "Collaborator not found" });
-      }
+    if (decoded.isCollaborator && decoded.collaboratorData) {
+      const collaborator = decoded.collaboratorData;
       
       // Return user info with collaborator details
       return res.json({
@@ -879,14 +849,22 @@ router.get("/user/profile", async (req, res) => {
         isCollaborator: true,
         collaborator: {
           email: collaborator.email,
-          role: collaborator.role
+          role: collaborator.role,
+          name: collaborator.name,
+          status: collaborator.status
         }
       });
     }
 
-    // Regular user
-    res.json(user);
+    // Regular user - return user data without sensitive fields
+    const userResponse = user.toObject ? user.toObject() : user;
+    delete userResponse.password;
+    delete userResponse.otp;
+    delete userResponse.otpExpiry;
+    
+    res.json(userResponse);
   } catch (error) {
+    console.error("User profile error:", error);
     res.status(401).json({ message: "Invalid token" });
   }
 });
@@ -894,21 +872,26 @@ router.get("/user/profile", async (req, res) => {
 // Change Password Route
 router.post("/change-password", async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    const decoded = await tokenManager.verifyToken(token, { verifyDatabase: true });
     
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!decoded || !decoded.userData) {
+      return res.status(401).json({ message: "Invalid token" });
     }
 
-    // Check if user is registered with Google
+    const user = decoded.userData;
+    
+    // Check if user is registered with Google or Microsoft
     if (user.googleId) {
       return res.status(400).json({ message: "Google-authenticated accounts cannot change password through this method." });
+    }
+
+    if (user.microsoftId) {
+      return res.status(400).json({ message: "Microsoft-authenticated accounts cannot change password through this method." });
     }
 
     const { currentPassword, newPassword } = req.body;
@@ -940,9 +923,6 @@ router.post("/change-password", async (req, res) => {
     res.json({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: "Invalid token" });
-    }
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1016,7 +996,7 @@ router.post("/unified-auth", async (req, res) => {
         await user.save();
 
         // Generate JWT with comprehensive user data
-        const token = generateUserToken(user);
+        const { accessToken: token } = tokenManager.generateTokens(user);
         
         // Log successful login
         await Logger.log(req, 'login', {
@@ -1113,7 +1093,7 @@ router.post("/unified-auth", async (req, res) => {
                 await parentUser.save();
                 
                 // Generate JWT with comprehensive user and collaborator info
-                const token = generateUserToken(parentUser, collaborator);
+                const { accessToken: token } = tokenManager.generateTokens(parentUser, collaborator);
                 
                 // Log successful collaborator login
                 await Logger.log(req, 'login', {
@@ -1231,7 +1211,7 @@ router.post("/unified-auth", async (req, res) => {
               await parentUser.save();
               
               // Generate JWT with comprehensive user and collaborator info
-              const token = generateUserToken(parentUser, collaborator);
+              const { accessToken: token } = tokenManager.generateTokens(parentUser, collaborator);
               
               // Log successful collaborator login
               await Logger.log(req, 'login', {
@@ -1375,6 +1355,50 @@ router.post("/check-account", async (req, res) => {
   } catch (error) {
     console.error("Check account error:", error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Token refresh endpoint
+router.post("/refresh", refreshToken, async (req, res) => {
+  try {
+    const { accessToken, refreshToken: newRefreshToken, expiresIn, expiresAt } = req.newTokens;
+    
+    res.json({
+      message: "Token refreshed successfully",
+      accessToken,
+      refreshToken: newRefreshToken,
+      expiresIn,
+      expiresAt
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    res.status(500).json({ message: "Server error during token refresh" });
+  }
+});
+
+// Logout endpoint
+router.post("/logout", logout, async (req, res) => {
+  try {
+    res.json({
+      message: "Logged out successfully"
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Server error during logout" });
+  }
+});
+
+// Get token statistics (admin only)
+router.get("/token-stats", authenticateRole(['admin']), async (req, res) => {
+  try {
+    const stats = tokenManager.getStats();
+    res.json({
+      message: "Token statistics retrieved successfully",
+      stats
+    });
+  } catch (error) {
+    console.error("Token stats error:", error);
+    res.status(500).json({ message: "Server error retrieving token statistics" });
   }
 });
 
