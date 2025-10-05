@@ -74,16 +74,30 @@ class AutomatedAlertGenerator {
 
   // Prompt 1: Alert Generation System Instruction
   buildPrompt1SystemInstruction(city, advisor) {
-    const currentDate = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
-    const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 15 days from now
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+    const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 14 days from now
     
-    return `You are a highly specialized research analyst for the ${city} ${advisor} sector. Your sole task is to find high-impact, current, and sourced disruption events and quantify their threat.
+    // Format current date with day of week and timezone
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dayName = dayNames[now.getDay()];
+    const monthName = monthNames[now.getMonth()];
+    const day = now.getDate();
+    const year = now.getFullYear();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const currentDateTime = `${dayName}, ${monthName} ${day}, ${year} at ${hours}:${minutes} BST`;
+    
+    return `CURRENT DATE ANCHOR: The current date and time is ${currentDateTime}. All searches MUST be anchored to this current date.
 
-IMPORTANT: Today is ${currentDate}. All events must be CURRENT (happening today) or OCCURRING between ${currentDate} and ${futureDate}. DO NOT include events from 2024 or earlier. DO NOT include events that have already ended.
+You are a highly specialized research analyst for the ${city} ${advisor} sector. Your sole task is to find high-impact, current, and sourced disruption events and quantify their threat.
 
 Scope of Disruptions: Industrial strikes, Extreme weather, Infrastructure failures, Public safety incidents, Major events/festivals, Aviation/airport disruptions, Global incidents with knock-on impact.
 
-Time Constraint: All events must be CURRENT or OCCURRING within the next 15 days from today (${currentDate}). Focus on events happening in 2025, not historical events from 2024 or earlier.
+Time Constraint (CRITICAL FILTER - Non-Negotiable Rolling Window): All events MUST be currently active or scheduled to begin within the next 14 days (i.e., before ${futureDate}).
+
+STRICT DATE CHECK: Any event that has an end date BEFORE the current date (${currentDate}) MUST be marked as invalid. You MUST NOT include events that have already ended.
 
 Alert Mix Quota (AIM FOR): Aim for 5 distinct alerts.
 
@@ -99,10 +113,9 @@ Output: The output must be a JSON object containing an array of 5 or fewer raw a
   // Prompt 1: Alert Generation User Query
   buildPrompt1UserQuery(city, advisor) {
     const currentDate = new Date().toISOString().split('T')[0];
+    const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
     return `Generate a list of high-impact alerts concerning the scope disruptions that will specifically disrupt the ${advisor} sector in ${city}.
-
-CRITICAL: Today is ${currentDate}. Only include events that are happening TODAY or in the next 15 days. Do NOT include events from 2024 or earlier. Focus on current and upcoming events in 2025.
 
 For each alert, provide:
 
@@ -112,13 +125,15 @@ raw_headline: A short (max 10 words) factual headline.
 
 summary_detail: A 2-3 sentence summary of the event, origin, and expected duration.
 
-raw_start_date: The raw text date/time of the event start (must be ${currentDate} or later).
+raw_start_date: The raw text date/time of the event start.
 
-raw_end_date: The raw text date/time of the event end (must be ${currentDate} or later).
+raw_end_date: The raw text date/time of the event end.
 
 specific_impact_metric: A single quantifiable business metric (e.g., "24-Hour IT Downtime," "15% Revenue Risk," "48-Hour Water Loss").
 
 confidence_score: A numerical score between 0.0 and 1.0 reflecting the certainty of the disruption's impact and timing.
+
+is_date_valid: A boolean value (true or false). MUST be 'true' only if the event has not yet ended; 'false' if the end date is in the past.
 
 source_name: The name of the primary source (e.g., BBC, The Financial Times).
 
@@ -136,6 +151,7 @@ REQUIRED JSON SCHEMA
       "raw_end_date": "string",
       "specific_impact_metric": "string",
       "confidence_score": "number (0.0 to 1.0)",
+      "is_date_valid": "boolean",
       "source_name": "string",
       "source_url": "string"
     }
@@ -157,7 +173,9 @@ IMPACT_LEVELS: Low, Moderate, Severe
 
 --- NON-NEGOTIABLE QUALITY GUARDRAILS ---
 
-Quality Gate: You MUST exclude any input alert that has a 'confidence_score' LESS THAN 0.5.
+Quality Gate (Date): You MUST exclude any input alert where 'is_date_valid' is FALSE. This is the first mandatory filter.
+
+Quality Gate (Confidence): You MUST exclude any input alert that has a 'confidence_score' LESS THAN 0.5.
 
 Source Gate: You MUST exclude any input alert where 'source_name' or 'source_url' is missing or empty.
 
@@ -181,8 +199,6 @@ Output: The output must be a JSON array of the final, structured recommendation 
     const currentDate = new Date().toISOString().split('T')[0];
     
     return `Analyze the following raw alerts for ${city} and transform them into final, fully structured, high-quality recommendations, ensuring all guardrails are met. Exclude any alerts that fail the quality gates.
-
-IMPORTANT: Today is ${currentDate}. Only process alerts that are happening today or in the next 15 days. Reject any alerts with dates from 2024 or earlier.
 
 Raw Alerts Input:
 ${rawAlertsJson}
@@ -1006,11 +1022,23 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
   }
 
   determineStatus(confidence) {
-    // All alerts should be pending for manual review
+
+    if (confidence >= 0.9) {
+      return 'approved';
+    } else if (confidence >= 0.5) {
+      return 'pending';
+    } else {
+      return 'rejected';
+    }
     return 'pending';
   }
 
-  async generateAlertsForAllCities(advisor = 'Hotel') {
+  async generateAlertsForAllCities(advisor = null) {
+    // If no advisor specified, generate for all sectors
+    if (!advisor) {
+      return await this.generateAlertsForAllSectors();
+    }
+
     console.log(`Starting automated alert generation for all cities (${advisor} sector)...`);
     
     const processStartTime = new Date();
@@ -1096,6 +1124,48 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
     return results;
   }
 
+  async generateAlertsForAllSectors() {
+    console.log('Starting automated alert generation for all cities and all sectors...');
+    
+    const advisorTypes = ['Hotel', 'DMO', 'Tour Operator', 'Travel Agency', 'Airline'];
+    const overallResults = {
+      total: 0,
+      approved: 0,
+      pending: 0,
+      duplicates: 0,
+      errors: 0,
+      sectorResults: {}
+    };
+
+    for (const advisor of advisorTypes) {
+      console.log(`Generating alerts for ${advisor} sector...`);
+      try {
+        const sectorResults = await this.generateAlertsForAllCities(advisor);
+        
+        overallResults.total += sectorResults.total;
+        overallResults.approved += sectorResults.approved;
+        overallResults.pending += sectorResults.pending;
+        overallResults.duplicates += sectorResults.duplicates;
+        overallResults.errors += sectorResults.errors;
+        
+        overallResults.sectorResults[advisor] = sectorResults;
+      } catch (error) {
+        console.error(`Error generating alerts for ${advisor} sector:`, error);
+        overallResults.sectorResults[advisor] = {
+          total: 0,
+          approved: 0,
+          pending: 0,
+          duplicates: 0,
+          errors: 1
+        };
+        overallResults.errors++;
+      }
+    }
+
+    console.log('Automated alert generation completed for all sectors:', overallResults);
+    return overallResults;
+  }
+
   async logGenerationResults(results, processStartTime, processEndTime, processDuration, advisor = 'Hotel') {
     try {
       await Logger.logSystem('automated_alert_generation_completed', {
@@ -1128,17 +1198,8 @@ const scheduleAutomatedAlerts = () => {
   // cron.schedule('22 * * * *', async () => {
     console.log('Starting scheduled automated alert generation...');
     try {
-      // Generate alerts for different advisor types
-      const advisorTypes = ['Hotel', 'DMO', 'Tour Operator', 'Travel Agency', 'Airline'];
-      
-      for (const advisor of advisorTypes) {
-        console.log(`Generating alerts for ${advisor} sector...`);
-        try {
-          await generator.generateAlertsForAllCities(advisor);
-        } catch (error) {
-          console.error(`Error generating alerts for ${advisor} sector:`, error);
-        }
-      }
+      // Generate alerts for all sectors
+      await generator.generateAlertsForAllSectors();
     } catch (error) {
       console.error('Error in scheduled alert generation:', error);
     }
