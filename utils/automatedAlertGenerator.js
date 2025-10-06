@@ -968,12 +968,14 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
   }
 
   async saveAlert(alertData, isDuplicate = false, confidence = 0) {
+    const status = this.determineStatus(confidence);
+    
     // Ensure all location fields are properly formatted
     const processedAlertData = {
       ...alertData,
-      status: this.determineStatus(confidence),
+      status: status,
       alertGroupId: isDuplicate ? `duplicate_${Date.now()}` : `auto_${Date.now()}`,
-      addToEmailSummary: false, // Don't auto-add to email summary since all alerts are pending
+      addToEmailSummary: status === 'approved' && confidence >= 0.7, // Auto-add approved alerts to email summary
       updatedBy: 'Automated System',
       // Set default priority if not provided
       priority: alertData.priority || 'medium',
@@ -1022,15 +1024,14 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
   }
 
   determineStatus(confidence) {
-
-    if (confidence >= 0.9) {
+    // Auto-approve alerts with confidence >= 0.7
+    if (confidence >= 0.7) {
       return 'approved';
-    } else if (confidence >= 0.5) {
+    } else if (confidence >= 0.3) {
       return 'pending';
     } else {
-      return 'rejected';
+      return 'pending';
     }
-    return 'pending';
   }
 
   async generateAlertsForAllCities(advisor = null) {
@@ -1091,9 +1092,14 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
 
               await this.saveAlert(alertData, false, confidence);
 
-              // All alerts are now pending for manual review
-              results.pending++;
-              results.cityResults[city.name].pending++;
+              // Track approved vs pending alerts
+              if (status === 'approved') {
+                results.approved++;
+                results.cityResults[city.name].approved++;
+              } else {
+                results.pending++;
+                results.cityResults[city.name].pending++;
+              }
             }
 
             results.total++;
@@ -1121,6 +1127,7 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
     await this.logGenerationResults(results, processStartTime, processEndTime, processDuration, advisor);
 
     console.log('Automated alert generation completed:', results);
+    console.log(`Auto-approved ${results.approved} alerts with confidence >= 0.7`);
     return results;
   }
 
@@ -1175,6 +1182,7 @@ Festivals and Events: Citywide Festival, Sporting Event, Concerts and Stadium Ev
         totalPending: results.pending,
         totalDuplicates: results.duplicates,
         totalErrors: results.errors,
+        autoApprovalRate: results.total > 0 ? (results.approved / results.total * 100).toFixed(2) + '%' : '0%',
         processStartTime: processStartTime.toISOString(),
         processEndTime: processEndTime.toISOString(),
         processDurationMs: processDuration,

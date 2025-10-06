@@ -22,6 +22,7 @@ import autoUpdateRoutes from "./routes/autoUpdates.js";
 import timeTrackingRoutes from "./routes/timetracking.js";
 import alertMetricsRoutes from "./routes/alertMetrics.js";
 import citySearchRoutes from "./routes/citySearch.js";
+import searchTrackingRoutes from "./routes/searchTracking.js";
 import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
 import { scheduleAutomatedAlerts } from "./utils/automatedAlertGenerator.js";
 import { scheduleAutoUpdates } from "./utils/autoUpdateSystem.js";
@@ -169,6 +170,9 @@ app.use("/api/alert-metrics", alertMetricsRoutes);
 
 // Add city search routes
 app.use("/api/city-search", citySearchRoutes);
+
+// Add search tracking routes
+app.use("/api/search-tracking", searchTrackingRoutes);
 
 connectDB();
 const HOST = "0.0.0.0"; // Allows external connections
