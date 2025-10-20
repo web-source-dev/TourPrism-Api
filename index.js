@@ -50,7 +50,8 @@ const corsOptions = {
       "https://www.tourprism.com",
       "https://tourprism.com", 
       "http://localhost:3000", 
-      "http://localhost:3001"
+      "http://localhost:3001",
+      "http://192.168.1.7:3000"
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -94,7 +95,7 @@ app.use((err, req, res, next) => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["https://www.tourprism.com","https://tourprism.com", "http://localhost:3000", "http://localhost:3001"],
+    origin: ["https://www.tourprism.com","https://tourprism.com", "http://localhost:3000", "http://localhost:3001","http://192.168.1.7:3000"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }
