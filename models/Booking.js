@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
   // Reference to the hotel/user who owns this booking
@@ -216,5 +216,5 @@ bookingSchema.methods.associateWithAlert = async function(alertId, impact) {
 
 const Booking = mongoose.model('Booking', bookingSchema);
 
-export default Booking;
+module.exports = Booking;
 

@@ -1,6 +1,6 @@
-import express from "express";
-import { getProfile, updateProfile } from "../controllers/profileController.js";
-import { isAuthenticated } from "../middleware/auth.js";
+const express = require("express");
+const { getProfile, updateProfile } = require("../controllers/profileController.js");
+const { isAuthenticated } = require("../middleware/auth.js");
 
 const router = express.Router();
 
@@ -18,5 +18,5 @@ router.get("/", isAuthenticated, getProfile);
  */
 router.put("/", isAuthenticated, updateProfile);
 
-export default router;
+module.exports = router;
 

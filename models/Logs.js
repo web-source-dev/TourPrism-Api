@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const LogSchema = new mongoose.Schema({
   userId: {
@@ -225,4 +225,4 @@ LogSchema.statics.formatUser = function(user) {
 
 const Logs = mongoose.model('Logs', LogSchema);
 
-export default Logs;
+module.exports = Logs;

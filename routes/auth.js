@@ -1,9 +1,9 @@
-import express from "express";
-import passport from "passport";
-import dotenv from "dotenv";
+const express = require("express");
+const passport = require("passport");
+const dotenv = require("dotenv");
 dotenv.config();
 
-import {
+const {
   configureGoogleStrategy,
   configureMicrosoftStrategy,
   register,
@@ -19,8 +19,8 @@ import {
   getUserProfile,
   changePassword,
   handleLogout,
-} from "../controllers/authController.js";
-import { logout } from "../middleware/auth.js";
+} = require("../controllers/authController.js");
+const { logout } = require("../middleware/auth.js");
 
 const router = express.Router();
 
@@ -85,4 +85,4 @@ router.post("/change-password", changePassword);
 router.post("/logout", logout, handleLogout);
 
 
-export default router;
+module.exports = router;

@@ -1,9 +1,9 @@
-import express from "express";
-import { optionalAuth } from "../middleware/auth.js";
-import {
+const express = require("express");
+const { optionalAuth } = require("../middleware/auth.js");
+const {
   getAllAlerts,
   getCitySummary,
-} from "../controllers/alertController.js";
+} = require("../controllers/alertController.js");
 
 const router = express.Router();
 
@@ -13,4 +13,4 @@ router.get("/", optionalAuth, getAllAlerts);
 // Get city alert summary for home page
 router.get('/cities/summary', optionalAuth, getCitySummary);
 
-export default router;
+module.exports = router;

@@ -1,12 +1,12 @@
-import express from 'express';
-import { isAuthenticated, authorizeRoles } from '../middleware/auth.js';
-import {
+const express = require('express');
+const { isAuthenticated, authorizeRoles } = require('../middleware/auth.js');
+const {
   getAllLogs,
   getUserLogs,
   getActivitySummary,
   getMostActiveUsers,
   addLog
-} from '../controllers/logsController.js';
+} = require('../controllers/logsController.js');
 
 const router = express.Router();
 
@@ -48,4 +48,4 @@ router.get('/active-users', isAuthenticated, authorizeRoles(adminOnly), getMostA
  */
 router.post('/', isAuthenticated, authorizeRoles(adminOnly), addLog);
 
-export default router; 
+module.exports = router; 

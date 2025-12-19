@@ -1,4 +1,4 @@
-import { transporter } from '../emailService.js';
+const { transporter } = require('../emailService.js');
 
 // Send alert notification to team members
 const sendAlertNotificationToTeam = async (email, name, role, alertTitle, message, alertDetails, actionHubLink) => {
@@ -119,4 +119,4 @@ const sendAlertNotificationToTeam = async (email, name, role, alertTitle, messag
   }
 };
 
-export default sendAlertNotificationToTeam;
+module.exports = sendAlertNotificationToTeam;

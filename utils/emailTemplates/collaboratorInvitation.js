@@ -1,4 +1,4 @@
-import { transporter } from '../emailService.js';
+const { transporter } = require('../emailService.js');
 
 // Send collaborator invitation email
 const sendCollaboratorInvitation = async (email, ownerFirstName, ownerLastName, inviteUrl, role, collaboratorName) => {
@@ -42,4 +42,4 @@ const sendCollaboratorInvitation = async (email, ownerFirstName, ownerLastName, 
     }
   };
   
-  export default sendCollaboratorInvitation;
+  module.exports = sendCollaboratorInvitation;

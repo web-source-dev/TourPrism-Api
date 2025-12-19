@@ -1,7 +1,7 @@
-import cron from 'node-cron';
-import grokService from './grok.js';
-import newsDataService from './newsdata.js';
-import alertProcessor from './alertProcessor.js';
+const cron = require('node-cron');
+const grokService = require('./grok.js');
+const newsDataService = require('./newsdata.js');
+const alertProcessor = require('./alertProcessor.js');
 
 class AlertScheduler {
   constructor() {
@@ -294,4 +294,4 @@ class AlertScheduler {
   }
 }
 
-export default new AlertScheduler();
+module.exports = new AlertScheduler();

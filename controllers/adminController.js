@@ -1,12 +1,12 @@
-import Alert from '../models/Alert.js';
-import User from '../models/User.js';
-import Subscriber from '../models/subscribers.js';
-import Logger from '../utils/logger.js';
-import { startOfDay, subDays } from 'date-fns';
-import impactCalculator from '../config/impactCalculator.js';
+const Alert = require('../models/Alert.js');
+const User = require('../models/User.js');
+const Subscriber = require('../models/subscribers.js');
+const Logger = require('../utils/logger.js');
+const { startOfDay, subDays } = require('date-fns');
+const impactCalculator = require('../config/impactCalculator.js');
 
 // Get all alerts (admin only)
-export const getAlerts = async (req, res) => {
+const getAlerts = async (req, res) => {
   try {
     const {
       page = 1,
@@ -136,7 +136,7 @@ export const getAlerts = async (req, res) => {
 };
 
 // Update alert status (admin only)
-export const updateAlertStatus = async (req, res) => {
+const updateAlertStatus = async (req, res) => {
   try {
     const { alertId } = req.params;
     const { status } = req.body;
@@ -180,7 +180,7 @@ export const updateAlertStatus = async (req, res) => {
 };
 
 // Delete alert (admin only)
-export const deleteAlert = async (req, res) => {
+const deleteAlert = async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -218,7 +218,7 @@ export const deleteAlert = async (req, res) => {
 };
 
 // Archive alert (admin only)
-export const archiveAlert = async (req, res) => {
+const archiveAlert = async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -245,7 +245,7 @@ export const archiveAlert = async (req, res) => {
 };
 
 // Duplicate alert (admin only)
-export const duplicateAlert = async (req, res) => {
+const duplicateAlert = async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -284,7 +284,7 @@ export const duplicateAlert = async (req, res) => {
 };
 
 // Get alert details (admin only)
-export const getAlertDetails = async (req, res) => {
+const getAlertDetails = async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -302,7 +302,7 @@ export const getAlertDetails = async (req, res) => {
 };
 
 // Update alert (admin only)
-export const updateAlert = async (req, res) => {
+const updateAlert = async (req, res) => {
   try {
     const { alertId } = req.params;
     const updateData = req.body;
@@ -359,7 +359,7 @@ export const updateAlert = async (req, res) => {
 };
 
 // Create new alert (admin only)
-export const createAlert = async (req, res) => {
+const createAlert = async (req, res) => {
   try {
     const alertData = req.body;
 
@@ -391,7 +391,7 @@ export const createAlert = async (req, res) => {
 };
 
 // Get city-wide risk stats (for non-authenticated users)
-export const getCityRiskStats = async (req, res) => {
+const getCityRiskStats = async (req, res) => {
   try {
     const { city } = req.params;
     const today = startOfDay(new Date());
@@ -474,7 +474,7 @@ export const getCityRiskStats = async (req, res) => {
 };
 
 // Get hotel savings stats (weekly savings achieved through platform)
-export const getHotelSavingsStats = async (req, res) => {
+const getHotelSavingsStats = async (req, res) => {
   try {
     const { hotelId } = req.params;
     const today = startOfDay(new Date());
@@ -605,7 +605,7 @@ export const getHotelSavingsStats = async (req, res) => {
 };
 
 // Trigger alert generation (admin only)
-export const triggerAlertGeneration = async (req, res) => {
+const triggerAlertGeneration = async (req, res) => {
   try {
     // Import scheduler dynamically to avoid circular imports
     const { alertScheduler } = await import('../config/index.js');
@@ -643,7 +643,7 @@ export const triggerAlertGeneration = async (req, res) => {
 };
 
 // Get all subscribers (admin only)
-export const getSubscribers = async (req, res) => {
+const getSubscribers = async (req, res) => {
   try {
     const {
       page = 1,
@@ -696,7 +696,7 @@ export const getSubscribers = async (req, res) => {
 };
 
 // Delete subscriber (admin only)
-export const deleteSubscriber = async (req, res) => {
+const deleteSubscriber = async (req, res) => {
   try {
     const { email } = req.params;
 
@@ -731,7 +731,7 @@ export const deleteSubscriber = async (req, res) => {
 };
 
 // Get subscriber statistics (admin only)
-export const getSubscriberStats = async (req, res) => {
+const getSubscriberStats = async (req, res) => {
   try {
     const totalSubscribers = await Subscriber.countDocuments();
     const activeSubscribers = await Subscriber.countDocuments({ isActive: true });
@@ -777,7 +777,7 @@ export const getSubscriberStats = async (req, res) => {
 
 
 // Process alert (approve/decline) (admin only)
-export const processAlert = async (req, res) => {
+const processAlert = async (req, res) => {
   try {
     const { alertId } = req.params;
     const { action, ...updateData } = req.body;
@@ -828,7 +828,7 @@ export const processAlert = async (req, res) => {
 };
 
 // Create user (admin only)
-export const createUser = async (req, res) => {
+const createUser = async (req, res) => {
   try {
     const { email, role, status, isPremium, company } = req.body;
 
@@ -907,7 +907,7 @@ export const createUser = async (req, res) => {
 };
 
 // Get all users (admin only)
-export const getUsers = async (req, res) => {
+const getUsers = async (req, res) => {
   try {
     const {
       page = 1,
@@ -976,7 +976,7 @@ export const getUsers = async (req, res) => {
 };
 
 // Get user details (admin only)
-export const getUserDetails = async (req, res) => {
+const getUserDetails = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -996,7 +996,7 @@ export const getUserDetails = async (req, res) => {
 };
 
 // Update user (admin only)
-export const updateUser = async (req, res) => {
+const updateUser = async (req, res) => {
   try {
     const { userId } = req.params;
     const updateData = req.body;
@@ -1038,7 +1038,7 @@ export const updateUser = async (req, res) => {
 };
 
 // Update user status (admin only)
-export const updateUserStatus = async (req, res) => {
+const updateUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
     const { status } = req.body;
@@ -1078,7 +1078,7 @@ export const updateUserStatus = async (req, res) => {
 };
 
 // Update user role (admin only)
-export const updateUserRole = async (req, res) => {
+const updateUserRole = async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
@@ -1118,7 +1118,7 @@ export const updateUserRole = async (req, res) => {
 };
 
 // Delete user (admin only) - soft delete by setting status to deleted
-export const deleteUser = async (req, res) => {
+const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -1149,7 +1149,7 @@ export const deleteUser = async (req, res) => {
 };
 
 // Get user statistics (admin only)
-export const getUserStats = async (req, res) => {
+const getUserStats = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const activeUsers = await User.countDocuments({ status: 'active' });
@@ -1194,7 +1194,7 @@ export const getUserStats = async (req, res) => {
 };
 
 // Get comprehensive analytics data (admin only)
-export const getAnalytics = async (req, res) => {
+const getAnalytics = async (req, res) => {
   try {
     const { startDate, endDate, period = '30d' } = req.query;
 
@@ -1720,4 +1720,31 @@ const getRevenueAnalytics = async (startDate, endDate) => {
     console.error('Error in revenue analytics:', error);
     return {};
   }
+};
+
+module.exports = {
+  getAlerts,
+  updateAlertStatus,
+  deleteAlert,
+  archiveAlert,
+  duplicateAlert,
+  getAlertDetails,
+  updateAlert,
+  createAlert,
+  getCityRiskStats,
+  getHotelSavingsStats,
+  triggerAlertGeneration,
+  getSubscribers,
+  deleteSubscriber,
+  getSubscriberStats,
+  processAlert,
+  createUser,
+  getUsers,
+  getUserDetails,
+  updateUser,
+  updateUserStatus,
+  updateUserRole,
+  deleteUser,
+  getUserStats,
+  getAnalytics
 }; 

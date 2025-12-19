@@ -1,12 +1,12 @@
-import User from "../models/User.js";
-import tokenManager from "../utils/tokenManager.js";
-import Logger from "../utils/logger.js";
+const User = require("../models/User.js");
+const tokenManager = require("../utils/tokenManager.js");
+const Logger = require("../utils/logger.js");
 
 /**
  * Get user profile
  * Returns full user data including company information
  */
-export const getProfile = async (req, res) => {
+const getProfile = async (req, res) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
@@ -70,7 +70,7 @@ export const getProfile = async (req, res) => {
  * Update user profile
  * Simple update that handles both step 1 and step 2 data
  */
-export const updateProfile = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
     // Check if user is a collaborator - collaborators cannot update profile
     if (req.isCollaborator) {
@@ -149,4 +149,9 @@ export const updateProfile = async (req, res) => {
     console.error("Update profile error:", error);
     res.status(500).json({ message: "Failed to update profile", error: error.message });
   }
+};
+
+module.exports = {
+  getProfile,
+  updateProfile
 };

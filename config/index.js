@@ -1,13 +1,13 @@
 // Backend configuration and service exports
-export { default as connectDB } from './db.js';
-export { default as grokService } from './grok.js';
-export { default as newsDataService } from './newsdata.js';
-export { default as impactCalculator } from './impactCalculator.js';
-export { default as alertProcessor } from './alertProcessor.js';
-export { default as alertScheduler } from './scheduler.js';
+const connectDB = require('./db.js');
+const grokService = require('./grok.js');
+const newsDataService = require('./newsdata.js');
+const impactCalculator = require('./impactCalculator.js');
+const alertProcessor = require('./alertProcessor.js');
+const alertScheduler = require('./scheduler.js');
 
 // Environment variables validation
-export const validateEnvironment = () => {
+const validateEnvironment = () => {
   const required = [
     'MONGO_URI',
     'GROK_API_KEY',
@@ -25,7 +25,7 @@ export const validateEnvironment = () => {
 };
 
 // Initialize all services
-export const initializeServices = async () => {
+const initializeServices = async () => {
   try {
     console.log('🔄 Initializing backend services...');
 
@@ -44,4 +44,15 @@ export const initializeServices = async () => {
     console.error('❌ Error initializing services:', error);
     throw error;
   }
+};
+
+module.exports = {
+  connectDB,
+  grokService,
+  newsDataService,
+  impactCalculator,
+  alertProcessor,
+  alertScheduler,
+  validateEnvironment,
+  initializeServices
 };

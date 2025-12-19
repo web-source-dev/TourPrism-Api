@@ -1,7 +1,7 @@
-import Alert from '../models/Alert.js';
-import grokService from './grok.js';
-import impactCalculator from './impactCalculator.js';
-import {
+const Alert = require('../models/Alert.js');
+const grokService = require('./grok.js');
+const impactCalculator = require('./impactCalculator.js');
+const {
   CONFIDENCE_SCORING,
   ALERT_STATUSES,
   ALERT_TONES,
@@ -9,7 +9,7 @@ import {
   ALERT_MAIN_TYPES,
   ALERT_SUB_TYPES,
   CONFIDENCE_THRESHOLDS
-} from './constants.js';
+} = require('./constants.js');
 
 class AlertProcessor {
   constructor() {
@@ -653,4 +653,4 @@ Return only one word: Early, Developing, or Confirmed.`;
   }
 }
 
-export default new AlertProcessor();
+module.exports = new AlertProcessor();

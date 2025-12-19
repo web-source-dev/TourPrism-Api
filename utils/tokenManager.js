@@ -1,8 +1,8 @@
-import jwt from "jsonwebtoken";
-import User from "../models/User.js";
-import Logger from "./logger.js";
-import crypto from "crypto";
-import dotenv from "dotenv";
+const jwt = require("jsonwebtoken");
+const User = require("../models/User.js");
+const Logger = require("./logger.js");
+const crypto = require("crypto");
+const dotenv = require("dotenv");
 
 // Load environment variables
 dotenv.config();
@@ -412,6 +412,5 @@ class TokenManager {
 // Create singleton instance
 const tokenManager = new TokenManager();
 
-// Export both the class and instance
-export { TokenManager };
-export default tokenManager;
+module.exports = tokenManager;
+module.exports.TokenManager = TokenManager;

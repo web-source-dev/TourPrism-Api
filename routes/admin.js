@@ -1,6 +1,6 @@
-import express from "express";
-import { authorizeRoles } from "../middleware/auth.js";
-import {
+const express = require("express");
+const { authorizeRoles } = require("../middleware/auth.js");
+const {
   getHotelSavingsStats,
   getCityRiskStats,
   getAlerts,
@@ -25,7 +25,7 @@ import {
   processAlert,
   triggerAlertGeneration,
   getAnalytics
-} from '../controllers/adminController.js';
+} = require('../controllers/adminController.js');
 
 const router = express.Router();
 
@@ -65,4 +65,4 @@ router.delete("/subscribers/:email", authorizeRoles(['admin']), deleteSubscriber
 // Analytics routes (admin only)
 router.get("/analytics", authorizeRoles(['admin']), getAnalytics);
 
-export default router; 
+module.exports = router; 
