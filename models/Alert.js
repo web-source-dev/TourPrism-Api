@@ -2,210 +2,182 @@ import mongoose from "mongoose";
 
 const alertSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    // Origin location (single location)
-    originLatitude: {
-      type: Number,
-      required: function () {
-        // Only required if latitude is not provided (legacy field)
-        return !this.latitude;
-      }
-    },
-    originLongitude: {
-      type: Number,
-      required: function () {
-        // Only required if longitude is not provided (legacy field)
-        return !this.longitude;
-      }
-    },
-    originLocation: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        default: 'Point'
-      },
-      coordinates: {
-        type: [Number]
-      }
-    },
-    originCity: {
+
+    title: {
       type: String,
-      required: function () {
-        // Only required if city is not provided (legacy field)
-        return !this.city;
-      }
+      required: true
     },
-    originCountry: {
-      type: String
-    },
-    originPlaceId: {
-      type: String
-    },
-    // Impact locations (multiple locations)
-    impactLocations: [
-      {
-        latitude: { type: Number },
-        longitude: { type: Number },
-        city: { type: String },
-        country: { type: String },
-        placeId: { type: String },
-        location: {
-          type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
-          },
-          coordinates: {
-            type: [Number]
-          }
-        }
-      }
-    ],
-    // Legacy fields maintained for backward compatibility
-    latitude: {
-      type: Number
-    },
-    longitude: {
-      type: Number
-    },
-    location: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        default: 'Point'
-      },
-      coordinates: {
-        type: [Number]
-      }
+    summary: {
+      type: String,
+      required: true
     },
     city: {
       type: String,
+      required: true
     },
-    media: [
-      {
-        url: { type: String },
-        type: { type: String } // 'image', 'video', etc.
-      }
-    ],
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "archived", "deleted"],
-      default: "pending"
+      enum: ['pending', 'approved', 'expired'],
+      default: 'pending'
     },
-    likes: {
-      type: Number,
-      default: 0
+    source: {
+      type: String
     },
-    likedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-      }
-    ],
-    flaggedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-      }
-    ],
-    shares: {
-      type: Number,
-      default: 0
+    url: {
+      type: String
     },
-    sharedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-      }
-    ],
-    description: {
-      type: String,
-    },
-    alertGroupId: {
-      type: String,
-    },
-    expectedStart: {
+    // Alias fields for fetched alerts (same as expectedStart/expectedEnd)
+    startDate: {
       type: Date,
     },
-    expectedEnd: {
+    endDate: {
       type: Date,
-    },
-    version: {
-      type: Number,
-      default: 1
     },
     isLatest: {
       type: Boolean,
       default: true
     },
-    alertCategory: {
+    // Enhanced categorization for fetched alerts
+    mainType: {
       type: String,
+      enum: ['strike', 'weather', 'protest', 'flight_issues', 'staff_shortage',
+             'supply_chain', 'system_failure', 'policy', 'economy', 'other']
     },
-    alertType: {
+    subType: {
       type: String,
+      enum: ['airline_pilot', 'rail', 'ferry', 'ground_staff', 'baggage_handlers',
+             'snow', 'flood', 'storm', 'fog', 'ice', 'hurricane', 'heatwave', 'cold_snap',
+             'march', 'blockade', 'sit_in', 'demonstration', 'rally', 'riot', 'civil_unrest',
+             'delay', 'cancellation', 'grounding', 'overbooking', 'airspace_restriction', 'runway_closure',
+             'airport_check_in', 'hotel_cleaning', 'crew_absence',
+             'jet_fuel_shortage', 'catering_delay', 'laundry_crisis', 'toiletries_shortage',
+             'it_crash', 'border_control_outage', 'booking_system_down', 'e_gates_failure', 'atm_failure', 'air_traffic_down',
+             'travel_ban', 'visa_change', 'quarantine_rule', 'advisory', 'embargo',
+             'pound_surge', 'recession', 'tourist_drop', 'exchange_rate_crash', 'fx_volatility', 'inflation_hit',
+             'road_closure', 'festival_chaos', 'construction_delay', 'mechanical_failure', 'natural_disaster', 'volcano', 'earthquake', 'wildfire']
     },
-    title: {
-      type: String,
+    // Origin city for global events affecting local areas
+    originCity: {
+      type: String
     },
-    risk: {
-      type: String,
-    },
-    // Changed from string to enum
-    impact: {
-      type: String,
-      enum: ["Low", "Moderate", "High"]
-    },
-    priority: {
-      type: String,
-    },
-    // Changed from string to array
-    targetAudience: {
+    sectors: {
       type: [String],
-      default: []
     },
-    recommendedAction: {
+    recoveryExpected: {
       type: String,
     },
-    linkToSource: {
-      type: String,
-      validate: {
-        validator: function(v) {
-          // If provided, must be a valid URL
-          if (!v) return true; // Optional field
-          try {
-            new URL(v);
-            return true;
-          } catch (e) {
-            return false;
-          }
-        },
-        message: 'linkToSource must be a valid URL'
-      }
+    // Confidence scoring system
+    confidence: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0
     },
-    numberOfFollows: {
+    confidenceSources: [{
+      source: {
+        type: String,
+        required: true
+      },
+      type: {
+        type: String,
+        enum: ['official', 'major_news', 'other_news', 'social'],
+        required: true
+      },
+      confidence: {
+        type: Number,
+        min: 0,
+        max: 1,
+        required: true
+      },
+      url: String,
+      title: String,
+      publishedAt: Date
+    }],
+    // LLM-generated fields
+    tone: {
+      type: String,
+      enum: ['Early', 'Developing', 'Confirmed']
+    },
+    header: {
+      type: String
+    },
+    // Impact calculation fields
+    roomsAtRisk: {
       type: Number,
       default: 0
     },
+    revenueAtRisk: {
+      type: Number,
+      default: 0
+    },
+    recoveryRate: {
+      type: Number,
+      min: 0,
+      max: 1
+    },
+    roomsSaved: {
+      type: Number,
+      default: 0
+    },
+    revenueSaved: {
+      type: Number,
+      default: 0
+    },
+    // Dynamic "What's Impacted" structure
+    whatsImpacted: [
+      {
+        category: {
+          type: String,
+          required: true,
+        },
+        description: {
+          type: String,
+        },
+        icon: {
+          type: String,
+        },
+        items: [
+          {
+            title: {
+              type: String,
+              required: true,
+            },
+            description: {
+              type: String,
+            },
+          }
+        ],
+      }
+    ],
+    // Dynamic "Action Plan" structure
+    actionPlan: [
+      {
+        category: {
+          type: String,
+          required: true,
+        },
+        description: {
+          type: String,
+        },
+        icon: {
+          type: String,
+        },
+        items: [
+          {
+            title: {
+              type: String,
+              required: true,
+            },
+            description: {
+              type: String,
+            },
+          }
+        ],
+      }
+    ],
     viewCount: {
       type: Number,
       default: 0
-    },
-    addToEmailSummary: {
-      type: Boolean,
-      default: false
-    },
-    previousVersionNotes: {
-      type: String,
-    },
-    updatedBy: {
-      type: String,
-    },
-    updated: {
-      type: Date,
-      default: Date.now
     },
     followedBy: [
       {
@@ -213,115 +185,79 @@ const alertSchema = new mongoose.Schema(
         ref: "User"
       }
     ],
-    // Auto-update system fields
-    isUpdateOf: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Alert",
-      default: null
-    },
-    updateHistory: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Alert"
-    }],
-    lastAutoUpdateCheck: {
-      type: Date,
-      default: null
-    },
-    autoUpdateEnabled: {
-      type: Boolean,
-      default: true
-    },
-    autoUpdateSuppressed: {
-      type: Boolean,
-      default: false
-    },
-    autoUpdateSuppressedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
-    autoUpdateSuppressedAt: {
-      type: Date
-    },
-    autoUpdateSuppressedReason: {
-      type: String
-    },
-    // Update metadata
-    updateCount: {
-      type: Number,
-      default: 0
-    },
-    lastUpdateAt: {
-      type: Date
-    },
-    lastUpdateBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
-    updateSource: {
-      type: String,
-      enum: ["manual", "auto", "admin"],
-      default: "manual"
-    }
   },
   { timestamps: true }
 );
 
 // Pre-save middleware to validate and fix location data
 alertSchema.pre('save', function(next) {
-  // Validate and fix originLocation
-  if (this.originLocation && this.originLocation.type === 'Point') {
-    if (!this.originLocation.coordinates || !Array.isArray(this.originLocation.coordinates) || this.originLocation.coordinates.length !== 2) {
-      // If coordinates are invalid, try to use originLatitude/originLongitude
-      if (this.originLatitude && this.originLongitude) {
-        this.originLocation.coordinates = [this.originLongitude, this.originLatitude];
-      } else {
-        // If no valid coordinates, remove the location field
-        this.originLocation = undefined;
+  // Sync startDate/endDate with expectedStart/expectedEnd if not set
+  if (!this.startDate && this.expectedStart) {
+    this.startDate = this.expectedStart;
+  }
+  if (!this.endDate && this.expectedEnd) {
+    this.endDate = this.expectedEnd;
+  }
+
+  // Validate and fix legacy location field for backward compatibility
+  if (this.location && typeof this.location === 'object') {
+    // Ensure coordinates array exists and is valid
+    if (this.location.latitude && this.location.longitude) {
+      if (!this.location.coordinates || !Array.isArray(this.location.coordinates)) {
+        this.location.coordinates = [this.location.longitude, this.location.latitude];
       }
     }
   }
 
-  // Validate and fix legacy location field
-  if (this.location && this.location.type === 'Point') {
-    if (!this.location.coordinates || !Array.isArray(this.location.coordinates) || this.location.coordinates.length !== 2) {
-      // If coordinates are invalid, try to use latitude/longitude
-      if (this.latitude && this.longitude) {
-        this.location.coordinates = [this.longitude, this.latitude];
-      } else {
-        // If no valid coordinates, remove the location field
-        this.location = undefined;
-      }
-    }
-  }
-
-  // Validate and fix impactLocations
+  // Validate and fix impactLocations with proper GeoJSON structure
   if (this.impactLocations && Array.isArray(this.impactLocations)) {
-    this.impactLocations = this.impactLocations.filter(location => {
-      if (location.location && location.location.type === 'Point') {
-        if (!location.location.coordinates || !Array.isArray(location.location.coordinates) || location.location.coordinates.length !== 2) {
-          // If coordinates are invalid, try to use latitude/longitude
-          if (location.latitude && location.longitude) {
-            location.location.coordinates = [location.longitude, location.latitude];
-            return true;
-          } else {
-            // If no valid coordinates, remove this location
-            return false;
-          }
+    this.impactLocations = this.impactLocations.map(location => {
+      // Ensure each impact location has proper GeoJSON structure
+      if (location.latitude && location.longitude) {
+        if (!location.location || location.location.type !== 'Point') {
+          location.location = {
+            type: 'Point',
+            coordinates: [location.longitude, location.latitude]
+          };
+        } else if (!location.location.coordinates || !Array.isArray(location.location.coordinates)) {
+          location.location.coordinates = [location.longitude, location.latitude];
         }
-        return true;
       }
-      return false;
+      return location;
+    }).filter(location => {
+      // Remove locations without valid coordinates
+      return location.location &&
+             location.location.coordinates &&
+             Array.isArray(location.location.coordinates) &&
+             location.location.coordinates.length === 2;
     });
+  }
+
+  // Validate confidence score
+  if (this.confidence !== undefined) {
+    this.confidence = Math.max(0, Math.min(1, this.confidence));
   }
 
   next();
 });
 
-// Create index for efficient geospatial queries on both origin and impact locations
-alertSchema.index({ originLocation: '2dsphere' });
+// Create indexes for efficient geospatial queries
 alertSchema.index({ 'impactLocations.location': '2dsphere' });
 // Maintain legacy index for backward compatibility
 alertSchema.index({ location: '2dsphere' });
+
+// Index for confidence-based queries
+alertSchema.index({ confidence: 1, status: 1 });
+
+// Index for origin city filtering
+alertSchema.index({ originCity: 1, status: 1 });
+
+// Index for main/sub type filtering
+alertSchema.index({ mainType: 1, subType: 1, status: 1 });
+
+// Index for date range queries
+alertSchema.index({ startDate: 1, endDate: 1 });
+alertSchema.index({ expectedStart: 1, expectedEnd: 1 });
 
 const Alert = mongoose.model("Alert", alertSchema);
 export default Alert;
