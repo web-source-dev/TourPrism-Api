@@ -4,12 +4,12 @@
   "description": "Backend for Tourprism app",
   "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "seed": "node utils/seedDashboardData.js",
-    "seed:alerts": "node src/scripts/seedAlerts.js",
-    "seed:users": "node src/scripts/seedUsers.js",
-    "migrate:sector": "node src/scripts/migrateSectorToArray.js",
+    "seed:alerts": "node scripts/seedAlerts.js",
+    "seed:users": "node scripts/seedUsers.js",
+    "migrate:sector": "node scripts/migrateSectorToArray.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
