@@ -15,7 +15,7 @@ import subscribersRoutes from "./routes/subscribers.js";
 import logsRoutes from "./routes/logs.js";
 import { optionalAuth } from "./middleware/auth.js";
 import { createServer } from "http";
-import { Server } from "socket.io";
+import { Server } from "socket.io"; 
 
 const app = express();
 const httpServer = createServer(app);
