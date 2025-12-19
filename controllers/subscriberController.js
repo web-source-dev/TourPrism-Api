@@ -1,8 +1,8 @@
-import Subscriber from '../models/subscribers.js';
-import Logger from '../utils/logger.js';
-import User from '../models/User.js';
+const Subscriber = require('../models/subscribers.js');
+const Logger = require('../utils/logger.js');
+const User = require('../models/User.js');
 
-export const createSubscriber = async (req, res) => {
+const createSubscriber = async (req, res) => {
   try {
     const { name, email, location, sector } = req.body;
     if (!email) {
@@ -67,7 +67,7 @@ export const createSubscriber = async (req, res) => {
   }
 };
 
-export const updateSubscriberStatusByEmail = async (req, res) => {
+const updateSubscriberStatusByEmail = async (req, res) => {
   try {
     const { email } = req.params;
     const { isActive } = req.body;
@@ -114,7 +114,7 @@ export const updateSubscriberStatusByEmail = async (req, res) => {
 };
 
 // Check Subscriber Status
-export const checkSubscriber = async (req, res) => {
+const checkSubscriber = async (req, res) => {
   try {
     const { email } = req.params;
     const subscriber = await Subscriber.findOne({ email });
@@ -134,7 +134,7 @@ export const checkSubscriber = async (req, res) => {
 };
 
 // Unsubscribe
-export const unsubscribe = async (req, res) => {
+const unsubscribe = async (req, res) => {
   try {
     const { email } = req.query;
     const subscriber = await Subscriber.findOne({ email });
@@ -162,4 +162,11 @@ export const unsubscribe = async (req, res) => {
     console.error('Error unsubscribing:', error);
     res.status(500).json({ message: 'Server error' });
   }
+};
+
+module.exports = {
+  createSubscriber,
+  updateSubscriberStatusByEmail,
+  checkSubscriber,
+  unsubscribe
 };

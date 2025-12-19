@@ -1,4 +1,4 @@
-import { HOTEL_SIZES, BASE_RECOVERY_RATES, HOTEL_CONFIGS, DISRUPTION_PERCENTAGES } from './constants.js';
+const { HOTEL_SIZES, BASE_RECOVERY_RATES, HOTEL_CONFIGS, DISRUPTION_PERCENTAGES } = require('./constants.js');
 
 class ImpactCalculator {
   constructor() {
@@ -204,4 +204,4 @@ class ImpactCalculator {
   }
 }
 
-export default new ImpactCalculator();
+module.exports = new ImpactCalculator();

@@ -1,4 +1,4 @@
-import { transporter } from '../emailService.js';
+const { transporter } = require('../emailService.js');
 
 // Send alert notification to guests
 const sendAlertNotificationToGuest = async (email, name, alertTitle, message, alertDetails) => {
@@ -112,4 +112,4 @@ const sendAlertNotificationToGuest = async (email, name, alertTitle, message, al
     }
   };
 
-  export default sendAlertNotificationToGuest;
+  module.exports = sendAlertNotificationToGuest;

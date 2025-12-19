@@ -111,4 +111,4 @@ const generateWeeklyDigestEmail = (params) => {
   `;
 };
 
-export default generateWeeklyDigestEmail; 
+module.exports = generateWeeklyDigestEmail; 

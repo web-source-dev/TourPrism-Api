@@ -1,17 +1,17 @@
-import bcrypt from "bcryptjs";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { Strategy as MicrosoftStrategy } from "passport-microsoft";
-import User from "../models/User.js";
-import Logger from "../utils/logger.js";
-import { generateOTP } from "../utils/emailService.js";
-import sendVerificationEmail from "../utils/emailTemplates/verification.js";
-import SibApiV3Sdk from "sib-api-v3-sdk";
-import Subscriber from "../models/subscribers.js";
-import tokenManager from "../utils/tokenManager.js";
+const bcrypt = require("bcryptjs");
+const passport = require("passport");
+const { Strategy: GoogleStrategy } = require("passport-google-oauth20");
+const { Strategy: MicrosoftStrategy } = require("passport-microsoft");
+const User = require("../models/User.js");
+const Logger = require("../utils/logger.js");
+const { generateOTP } = require("../utils/emailService.js");
+const sendVerificationEmail = require("../utils/emailTemplates/verification.js");
+const SibApiV3Sdk = require("sib-api-v3-sdk");
+const Subscriber = require("../models/subscribers.js");
+const tokenManager = require("../utils/tokenManager.js");
 
 // Configure Google Strategy
-export const configureGoogleStrategy = () => {
+const configureGoogleStrategy = () => {
   // Determine callback URL based on environment
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
@@ -93,7 +93,7 @@ export const configureGoogleStrategy = () => {
 };
 
 // Configure Microsoft Strategy
-export const configureMicrosoftStrategy = () => {
+const configureMicrosoftStrategy = () => {
   // Determine callback URL based on environment
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
@@ -177,7 +177,7 @@ export const configureMicrosoftStrategy = () => {
 };
 
 // Register User
-export const register = async (req, res) => {
+const register = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -282,7 +282,7 @@ export const register = async (req, res) => {
 };
 
 // Verify Email
-export const verifyEmail = async (req, res) => {
+const verifyEmail = async (req, res) => {
   try {
     const { userId, otp } = req.body;
 
@@ -339,7 +339,7 @@ export const verifyEmail = async (req, res) => {
 };
 
 // Resend OTP
-export const resendOTP = async (req, res) => {
+const resendOTP = async (req, res) => {
   try {
     const { userId } = req.body;
 
@@ -380,7 +380,7 @@ export const resendOTP = async (req, res) => {
 };
 
 // Forgot Password
-export const forgotPassword = async (req, res) => {
+const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -456,7 +456,7 @@ export const forgotPassword = async (req, res) => {
 };
 
 // Verify Reset OTP
-export const verifyResetOTP = async (req, res) => {
+const verifyResetOTP = async (req, res) => {
   try {
     const { userId, otp } = req.body;
 
@@ -476,7 +476,7 @@ export const verifyResetOTP = async (req, res) => {
 };
 
 // Reset Password
-export const resetPassword = async (req, res) => {
+const resetPassword = async (req, res) => {
   try {
     const { userId, otp, newPassword } = req.body;
 
@@ -510,7 +510,7 @@ export const resetPassword = async (req, res) => {
 };
 
 // Login - works for both main users and collaborators
-export const login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -795,7 +795,7 @@ export const login = async (req, res) => {
 };
 
 // Google OAuth Callback
-export const googleCallback = async (req, res) => {
+const googleCallback = async (req, res) => {
   try {
     // Automatically verify email for Google sign-in users
     const user = await User.findById(req.user._id);
@@ -856,7 +856,7 @@ export const googleCallback = async (req, res) => {
 };
 
 // Microsoft OAuth Callback
-export const microsoftCallback = async (req, res) => {
+const microsoftCallback = async (req, res) => {
   try {
     // Automatically verify email for Microsoft sign-in users
     const user = await User.findById(req.user._id);
@@ -917,7 +917,7 @@ export const microsoftCallback = async (req, res) => {
 };
 
 // Verify Token
-export const verifyToken = async (req, res) => {
+const verifyToken = async (req, res) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
@@ -989,7 +989,7 @@ export const verifyToken = async (req, res) => {
 };
 
 // Get User Profile
-export const getUserProfile = async (req, res) => {
+const getUserProfile = async (req, res) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
@@ -1038,7 +1038,7 @@ export const getUserProfile = async (req, res) => {
 };
 
 // Change Password
-export const changePassword = async (req, res) => {
+const changePassword = async (req, res) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     if (!token) {
@@ -1114,7 +1114,7 @@ export const changePassword = async (req, res) => {
 };
 
 // Logout
-export const handleLogout = async (req, res) => {
+const handleLogout = async (req, res) => {
   try {
     // Clear authentication cookie
     tokenManager.clearAuthCookie(res);
@@ -1126,5 +1126,23 @@ export const handleLogout = async (req, res) => {
     console.error("Logout error:", error);
     res.status(500).json({ message: "Server error during logout" });
   }
+};
+
+module.exports = {
+  configureGoogleStrategy,
+  configureMicrosoftStrategy,
+  register,
+  verifyEmail,
+  resendOTP,
+  forgotPassword,
+  verifyResetOTP,
+  resetPassword,
+  login,
+  googleCallback,
+  microsoftCallback,
+  verifyToken,
+  getUserProfile,
+  changePassword,
+  handleLogout
 };
 

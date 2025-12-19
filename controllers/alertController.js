@@ -1,10 +1,10 @@
-import Alert from "../models/Alert.js";
-import Logger from '../utils/logger.js';
-import { io } from "../index.js";
-import impactCalculator from '../config/impactCalculator.js';
+const Alert = require("../models/Alert.js");
+const Logger = require('../utils/logger.js');
+const { io } = require("../index.js");
+const impactCalculator = require('../config/impactCalculator.js');
 
 // Get all alerts (with optional filtering)
-export const getAllAlerts = async (req, res) => {
+const getAllAlerts = async (req, res) => {
   try {
     const { city, mainType, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly, activeNow } = req.query;
     
@@ -274,7 +274,7 @@ export const getAllAlerts = async (req, res) => {
 };
 
 // Get city alert summary for home page
-export const getCitySummary = async (req, res) => {
+const getCitySummary = async (req, res) => {
   try {
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -373,5 +373,10 @@ export const getCitySummary = async (req, res) => {
     console.error('Error fetching city summary:', error);
     res.status(500).json({ message: 'Server error' });
   }
+};
+
+module.exports = {
+  getAllAlerts,
+  getCitySummary
 };
 

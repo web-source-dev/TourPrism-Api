@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { CITIES } from './constants.js';
+const axios = require('axios');
+const { CITIES } = require('./constants.js');
 
 class NewsDataService {
   constructor() {
@@ -250,4 +250,4 @@ class NewsDataService {
   }
 }
 
-export default new NewsDataService();
+module.exports = new NewsDataService();

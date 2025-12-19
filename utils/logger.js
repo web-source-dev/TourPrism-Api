@@ -1,4 +1,4 @@
-import Logs from '../models/Logs.js';
+const Logs = require('../models/Logs.js');
 
 /**
  * Centralized logging system for TourPrism
@@ -245,4 +245,4 @@ class Logger {
   }
 }
 
-export default Logger;
+module.exports = Logger;

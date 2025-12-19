@@ -1,5 +1,5 @@
-import axios from 'axios';
-const { LLM_PROMPTS } = await import('./constants.js');
+const axios = require('axios');
+const { LLM_PROMPTS } = require('./constants.js');
 
 class GrokService {
   constructor() {
@@ -153,4 +153,4 @@ Return only the header text, no quotes.`;
   }
 }
 
-export default new GrokService();
+module.exports = new GrokService();

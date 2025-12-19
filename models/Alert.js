@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const alertSchema = new mongoose.Schema(
   {
@@ -260,4 +260,4 @@ alertSchema.index({ startDate: 1, endDate: 1 });
 alertSchema.index({ expectedStart: 1, expectedEnd: 1 });
 
 const Alert = mongoose.model("Alert", alertSchema);
-export default Alert;
+module.exports = Alert;

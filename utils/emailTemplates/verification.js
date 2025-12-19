@@ -1,4 +1,4 @@
-import { transporter } from '../emailService.js';
+const { transporter } = require('../emailService.js');
 
 // Send verification email
 const sendVerificationEmail = async (email, otp) => {
@@ -16,7 +16,7 @@ const sendVerificationEmail = async (email, otp) => {
         </div>
       `
     };
-  
+
     try {
       await transporter.sendMail(mailOptions);
       return true;
@@ -25,5 +25,5 @@ const sendVerificationEmail = async (email, otp) => {
       return false;
     }
   };
-  
-  export default sendVerificationEmail;
+
+  module.exports = sendVerificationEmail;

@@ -1,14 +1,14 @@
-import express from 'express';
-import multer from 'multer';
-import {
+const express = require('express');
+const multer = require('multer');
+const {
   uploadBookings,
   getBookings,
   getBookingStats,
   updateBookingStatus,
   deleteBooking,
   getBookingsAtRisk
-} from '../controllers/bookingController.js';
-import { isAuthenticated } from '../middleware/auth.js';
+} = require('../controllers/bookingController.js');
+const { isAuthenticated } = require('../middleware/auth.js');
 
 const router = express.Router();
 
@@ -51,5 +51,5 @@ router.patch('/:bookingId/status', updateBookingStatus);
 // Delete booking
 router.delete('/:bookingId', deleteBooking);
 
-export default router;
+module.exports = router;
 

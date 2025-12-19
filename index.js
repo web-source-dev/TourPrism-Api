@@ -1,21 +1,21 @@
-import dotenv from "dotenv";
+const dotenv = require("dotenv");
 dotenv.config();
 
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import passport from "passport";
-import connectDB from "./config/db.js";
-import authRoutes from "./routes/auth.js";
-import profileRoutes from "./routes/profile.js";
-import alertRoutes from "./routes/alerts.js";
-import bookingRoutes from "./routes/bookings.js";
-import adminRoutes from "./routes/admin.js";
-import subscribersRoutes from "./routes/subscribers.js";
-import logsRoutes from "./routes/logs.js";
-import { optionalAuth } from "./middleware/auth.js";
-import { createServer } from "http";
-import { Server } from "socket.io"; 
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const passport = require("passport");
+const connectDB = require("./config/db.js");
+const authRoutes = require("./routes/auth.js");
+const profileRoutes = require("./routes/profile.js");
+const alertRoutes = require("./routes/alerts.js");
+const bookingRoutes = require("./routes/bookings.js");
+const adminRoutes = require("./routes/admin.js");
+const subscribersRoutes = require("./routes/subscribers.js");
+const logsRoutes = require("./routes/logs.js");
+const { optionalAuth } = require("./middleware/auth.js");
+const { createServer } = require("http");
+const { Server } = require("socket.io"); 
 
 const app = express();
 const httpServer = createServer(app);
@@ -89,7 +89,7 @@ io.on("connection", (socket) => {
   });
 });
 
-export { io };
+module.exports = { io };
 
 // Cookie parser needs to be early for authentication to work
 app.use(cookieParser());

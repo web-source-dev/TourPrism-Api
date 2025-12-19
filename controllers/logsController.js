@@ -1,9 +1,9 @@
-import Logs from '../models/Logs.js';
-import User from '../models/User.js';
-import Logger from '../utils/logger.js';
+const Logs = require('../models/Logs.js');
+const User = require('../models/User.js');
+const Logger = require('../utils/logger.js');
 
 // Get all logs with pagination and filtering
-export const getAllLogs = async (req, res) => {
+const getAllLogs = async (req, res) => {
   try {
     const {
       page = 1,
@@ -91,7 +91,7 @@ export const getAllLogs = async (req, res) => {
 };
 
 // Get logs for a specific user
-export const getUserLogs = async (req, res) => {
+const getUserLogs = async (req, res) => {
   try {
     const { userId } = req.params;
     const { page = 1, limit = 50 } = req.query;
@@ -140,7 +140,7 @@ export const getUserLogs = async (req, res) => {
 };
 
 // Get activity summary (counts by action type)
-export const getActivitySummary = async (req, res) => {
+const getActivitySummary = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -205,7 +205,7 @@ export const getActivitySummary = async (req, res) => {
 };
 
 // Get most active users
-export const getMostActiveUsers = async (req, res) => {
+const getMostActiveUsers = async (req, res) => {
   try {
     const { limit = 10, startDate, endDate } = req.query;
     const limitNum = parseInt(limit);
@@ -269,7 +269,7 @@ export const getMostActiveUsers = async (req, res) => {
 };
 
 // Add a new log entry directly (for testing or manual addition)
-export const addLog = async (req, res) => {
+const addLog = async (req, res) => {
   try {
     const { action, userId, userEmail, userName, details } = req.body;
 
@@ -298,4 +298,12 @@ export const addLog = async (req, res) => {
     console.error('Error adding log:', error);
     res.status(500).json({ message: 'Server error' });
   }
+};
+
+module.exports = {
+  getAllLogs,
+  getUserLogs,
+  getActivitySummary,
+  getMostActiveUsers,
+  addLog
 }; 

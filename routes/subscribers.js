@@ -1,10 +1,10 @@
-import express from 'express';
-import {
+const express = require('express');
+const {
   createSubscriber,
   updateSubscriberStatusByEmail,
   checkSubscriber,
   unsubscribe,
-} from '../controllers/subscriberController.js';
+} = require('../controllers/subscriberController.js');
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
     ipAddress,
     userAgent
   };
-  
+
   // Call the controller with the enhanced request
   return createSubscriber(req, res);
 });
@@ -33,4 +33,4 @@ router.put('/status/:email', updateSubscriberStatusByEmail);
 // GET /unsubscribe
 router.get('/unsubscribe', unsubscribe);
 
-export default router;
+module.exports = router;

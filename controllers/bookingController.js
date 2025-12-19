@@ -1,13 +1,13 @@
-import Booking from '../models/Booking.js';
-import Logger from '../utils/logger.js';
-import csv from 'csv-parser';
-import { Readable } from 'stream';
-import mongoose from 'mongoose';
+const Booking = require('../models/Booking.js');
+const Logger = require('../utils/logger.js');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+const mongoose = require('mongoose');
 
 /**
  * Upload and parse CSV file containing bookings
  */
-export const uploadBookings = async (req, res) => {
+const uploadBookings = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -200,7 +200,7 @@ export const uploadBookings = async (req, res) => {
 /**
  * Get bookings for the authenticated hotel
  */
-export const getBookings = async (req, res) => {
+const getBookings = async (req, res) => {
   try {
     const hotelId = req.userId;
     const {
@@ -281,7 +281,7 @@ export const getBookings = async (req, res) => {
 /**
  * Get booking statistics for the hotel
  */
-export const getBookingStats = async (req, res) => {
+const getBookingStats = async (req, res) => {
   try {
     const hotelId = req.userId;
     const { startDate, endDate } = req.query;
@@ -377,7 +377,7 @@ export const getBookingStats = async (req, res) => {
 /**
  * Update booking status
  */
-export const updateBookingStatus = async (req, res) => {
+const updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { status, riskLevel } = req.body;
@@ -430,7 +430,7 @@ export const updateBookingStatus = async (req, res) => {
 /**
  * Delete a booking
  */
-export const deleteBooking = async (req, res) => {
+const deleteBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const hotelId = req.userId;
@@ -475,7 +475,7 @@ export const deleteBooking = async (req, res) => {
 /**
  * Get bookings at risk for a specific alert
  */
-export const getBookingsAtRisk = async (req, res) => {
+const getBookingsAtRisk = async (req, res) => {
   try {
     const hotelId = req.userId;
     const { alertId, startDate, endDate } = req.query;
@@ -507,5 +507,14 @@ export const getBookingsAtRisk = async (req, res) => {
       error: error.message
     });
   }
+};
+
+module.exports = {
+  uploadBookings,
+  getBookings,
+  getBookingStats,
+  updateBookingStatus,
+  deleteBooking,
+  getBookingsAtRisk
 };
 

@@ -1,12 +1,12 @@
-import SibApiV3Sdk from 'sib-api-v3-sdk';
-import dotenv from 'dotenv';
+const SibApiV3Sdk = require('sib-api-v3-sdk');
+const dotenv = require('dotenv');
 dotenv.config();
-import Logger from './logger.js';
-import sendVerificationEmail from './emailTemplates/verification.js';
-import sendCollaboratorInvitation from './emailTemplates/collaboratorInvitation.js';
-import sendAlertNotificationToGuest from './emailTemplates/alertNotification-guests.js';
-import sendAlertNotificationToTeam from './emailTemplates/alertNotification-team.js';
-import generateWeeklyDigestEmail from './emailTemplates/weeklyDigest.js';
+const Logger = require('./logger.js');
+const sendVerificationEmail = require('./emailTemplates/verification.js');
+const sendCollaboratorInvitation = require('./emailTemplates/collaboratorInvitation.js');
+const sendAlertNotificationToGuest = require('./emailTemplates/alertNotification-guests.js');
+const sendAlertNotificationToTeam = require('./emailTemplates/alertNotification-team.js');
+const generateWeeklyDigestEmail = require('./emailTemplates/weeklyDigest.js');
 
 // Initialize Brevo API client
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
@@ -67,13 +67,11 @@ const transporter = {
 };
 
 // Generate a 6-digit OTP
-export const generateOTP = () => {
+const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-export { transporter };
-
-export default {
+module.exports = {
   transporter,
   generateOTP,
   sendVerificationEmail,

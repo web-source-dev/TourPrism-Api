@@ -1,5 +1,5 @@
 // Alert system constants - updated according to PDF specifications
-export const ALERT_MAIN_TYPES = [
+const ALERT_MAIN_TYPES = [
   'strike',
   'weather',
   'protest',
@@ -12,7 +12,7 @@ export const ALERT_MAIN_TYPES = [
   'other'
 ];
 
-export const ALERT_SUB_TYPES = [
+const ALERT_SUB_TYPES = [
   // Strike subtypes
   'airline pilot', 'rail', 'ferry', 'ground staff', 'baggage handlers',
   // Weather subtypes
@@ -35,19 +35,19 @@ export const ALERT_SUB_TYPES = [
   'road closure', 'festival chaos', 'construction delay', 'mechanical failure', 'natural disaster', 'volcano', 'earthquake', 'wildfire'
 ];
 
-export const ALERT_STATUSES = [
+const ALERT_STATUSES = [
   'pending',
   'approved',
   'expired'
 ];
 
-export const ALERT_TONES = [
+const ALERT_TONES = [
   'Early',
   'Developing',
   'Confirmed'
 ];
 
-export const ALERT_SECTORS = [
+const ALERT_SECTORS = [
   'Airlines',
   'Transportation',
   'Travel',
@@ -56,33 +56,33 @@ export const ALERT_SECTORS = [
   'Business Travel'
 ];
 
-export const CONFIDENCE_SOURCE_TYPES = [
+const CONFIDENCE_SOURCE_TYPES = [
   'official',      // BBC, MET, Gov.uk
   'major_news',    // Sky, Reuters, Guardian
   'other_news',    // Local, Al Jazeera, blogs
   'social'         // X, forums
 ];
 
-export const CONFIDENCE_THRESHOLDS = {
+const CONFIDENCE_THRESHOLDS = {
   HOLD: 0.6,      // < 0.6 = HOLD in pending
   APPROVE: 0.6    // ≥ 0.6 = LLM tone + header
 };
 
 // Cities supported
-export const CITIES = [
+const CITIES = [
   'Edinburgh',
   'London'
 ];
 
 // Hotel sizes for impact calculations - according to CALCULATIONS.pdf
-export const HOTEL_SIZES = [
+const HOTEL_SIZES = [
   'micro',   // <15 rooms
   'small',   // 16-50 rooms
   'medium'   // 51-150 rooms
 ];
 
 // Confidence scoring system - updated according to SCORING & PUBLISHING.pdf
-export const CONFIDENCE_SCORING = {
+const CONFIDENCE_SCORING = {
   official: { // BBC, MET, Gov.uk
     1: 0.8,
     2: 0.9,
@@ -106,7 +106,7 @@ export const CONFIDENCE_SCORING = {
 };
 
 // Base recovery rates by disruption type - updated according to CALCULATIONS.pdf
-export const BASE_RECOVERY_RATES = {
+const BASE_RECOVERY_RATES = {
   strike: 0.70,      // 70% base recovery
   weather: 0.60,     // 60% base recovery
   protest: 0.65,     // 65% base recovery
@@ -120,7 +120,7 @@ export const BASE_RECOVERY_RATES = {
 };
 
 // Disruption percentages by type - according to CALCULATIONS.pdf
-export const DISRUPTION_PERCENTAGES = {
+const DISRUPTION_PERCENTAGES = {
   strike: 0.25,      // 25% disruption
   weather: 0.25,     // 25% disruption
   protest: 0.25,     // 25% disruption
@@ -134,7 +134,7 @@ export const DISRUPTION_PERCENTAGES = {
 };
 
 // Hotel size configurations - according to CALCULATIONS.pdf
-export const HOTEL_CONFIGS = {
+const HOTEL_CONFIGS = {
   micro: {
     rooms: 8,
     occupancy: 0.60,
@@ -153,7 +153,7 @@ export const HOTEL_CONFIGS = {
 };
 
 // NewsData API configuration - according to FETCHING & SUMMARIZING.pdf
-export const NEWSDATA_CONFIG = {
+const NEWSDATA_CONFIG = {
   baseURL: 'https://newsdata.io/api/1',
   apiKey: process.env.NEWSDATA_API_KEY,
   countries: 'gb,it,fr,nl,de,es,ie,pl,pt,se,no,us,ca',
@@ -179,7 +179,7 @@ export const NEWSDATA_CONFIG = {
 };
 
 // Grok API configuration - according to FETCHING & SUMMARIZING.pdf
-export const GROK_CONFIG = {
+const GROK_CONFIG = {
   baseURL: 'https://api.x.ai/v1',
   apiKey: process.env.GROK_API_KEY,
   model: 'grok-beta',
@@ -191,7 +191,7 @@ export const GROK_CONFIG = {
 };
 
 // LLM Prompts - according to FETCHING & SUMMARIZING.pdf and SCORING & PUBLISHING.pdf
-export const LLM_PROMPTS = {
+const LLM_PROMPTS = {
   grokDisruptionSearch: `You are a hotel disruption scout for Edinburgh and London.
 
 Find ANYTHING that could stop guests arriving or checking in next 30 days.
@@ -250,4 +250,23 @@ Rules:
 - Use natural words (e.g. "this weekend", "Friday", "overnight")
 - X = number of rooms at risk
 - Y = total £ value at risk`
+};
+
+module.exports = {
+  ALERT_MAIN_TYPES,
+  ALERT_SUB_TYPES,
+  ALERT_STATUSES,
+  ALERT_TONES,
+  ALERT_SECTORS,
+  CONFIDENCE_SOURCE_TYPES,
+  CONFIDENCE_THRESHOLDS,
+  CITIES,
+  HOTEL_SIZES,
+  CONFIDENCE_SCORING,
+  BASE_RECOVERY_RATES,
+  DISRUPTION_PERCENTAGES,
+  HOTEL_CONFIGS,
+  NEWSDATA_CONFIG,
+  GROK_CONFIG,
+  LLM_PROMPTS
 };

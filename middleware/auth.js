@@ -1,5 +1,5 @@
-import tokenManager from "../utils/tokenManager.js";
-import Logger from "../utils/logger.js";
+const tokenManager = require("../utils/tokenManager.js");
+const Logger = require("../utils/logger.js");
 
 /**
  * Extract and verify JWT token using the global token manager
@@ -16,7 +16,7 @@ const getTokenData = async (req) => {
 /**
  * Basic authentication - requires valid token verified against database
  */
-export const isAuthenticated = async (req, res, next) => {
+const isAuthenticated = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -44,7 +44,7 @@ export const isAuthenticated = async (req, res, next) => {
 /**
  * Optional authentication - adds req.userId if token is valid and verified against database
  */
-export const optionalAuth = async (req, res, next) => {
+const optionalAuth = async (req, res, next) => {
   const decoded = await getTokenData(req);
   if (decoded) {
     req.userId = decoded.userId;
@@ -69,7 +69,7 @@ export const optionalAuth = async (req, res, next) => {
  * Authorize roles - checks if user has any of the specified roles (main or collaborator)
  * Usage: authorizeRoles(['admin', 'user', 'manager', 'viewer'])
  */
-export const authorizeRoles = (allowedRoles = []) => {
+const authorizeRoles = (allowedRoles = []) => {
   if (typeof allowedRoles === "string") {
     allowedRoles = [allowedRoles];
   }
@@ -117,7 +117,7 @@ export const authorizeRoles = (allowedRoles = []) => {
 /**
  * Check if user is a collaborator
  */
-export const isCollaborator = async (req, res, next) => {
+const isCollaborator = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -142,7 +142,7 @@ export const isCollaborator = async (req, res, next) => {
 /**
  * Check if user is a collaborator of a user account (parent role is 'user')
  */
-export const isCollaboratorUser = async (req, res, next) => {
+const isCollaboratorUser = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -171,7 +171,7 @@ export const isCollaboratorUser = async (req, res, next) => {
 /**
  * Check if user is a collaborator of an admin account (parent role is 'admin')
  */
-export const isCollaboratorAdmin = async (req, res, next) => {
+const isCollaboratorAdmin = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -200,7 +200,7 @@ export const isCollaboratorAdmin = async (req, res, next) => {
 /**
  * Check if user is a manager collaborator (manager role, can be from admin or user account)
  */
-export const isCollaboratorManager = async (req, res, next) => {
+const isCollaboratorManager = async (req, res, next) => {
     const decoded = await getTokenData(req);
 
     if (!decoded) {
@@ -229,7 +229,7 @@ export const isCollaboratorManager = async (req, res, next) => {
 /**
  * Check if user is a viewer collaborator (viewer role, can be from admin or user account)
  */
-export const isCollaboratorViewer = async (req, res, next) => {
+const isCollaboratorViewer = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -258,7 +258,7 @@ export const isCollaboratorViewer = async (req, res, next) => {
 /**
  * Check if user is admin (main role only, not collaborators)
  */
-export const isAdmin = async (req, res, next) => {
+const isAdmin = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -285,7 +285,7 @@ export const isAdmin = async (req, res, next) => {
 /**
  * Check if user is regular user (main role only, not collaborators)
  */
-export const isUser = async (req, res, next) => {
+const isUser = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -312,7 +312,7 @@ export const isUser = async (req, res, next) => {
 /**
  * Check if user has premium subscription (main users or collaborators inherit from parent)
  */
-export const isPremium = async (req, res, next) => {
+const isPremium = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -346,7 +346,7 @@ export const isPremium = async (req, res, next) => {
  * Get role information - returns full role details
  * Attaches role info to req.roleInfo
  */
-export const getRole = async (req, res, next) => {
+const getRole = async (req, res, next) => {
   const decoded = await getTokenData(req);
 
   if (!decoded) {
@@ -395,7 +395,7 @@ export const getRole = async (req, res, next) => {
 /**
  * Middleware to handle token blacklisting (logout)
  */
-export const logout = async (req, res, next) => {
+const logout = async (req, res, next) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     const decoded = await getTokenData(req);
@@ -417,10 +417,26 @@ export const logout = async (req, res, next) => {
         }
       }
     }
-    
+
     next();
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ message: "Server error during logout" });
   }
+};
+
+module.exports = {
+  isAuthenticated,
+  optionalAuth,
+  authorizeRoles,
+  isCollaborator,
+  isCollaboratorUser,
+  isCollaboratorAdmin,
+  isCollaboratorManager,
+  isCollaboratorViewer,
+  isAdmin,
+  isUser,
+  isPremium,
+  getRole,
+  logout
 };
