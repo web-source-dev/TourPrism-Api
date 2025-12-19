@@ -17,8 +17,8 @@ const subscriberSchema = new mongoose.Schema({
         placeId: String
         }
     ],
-    sector: {
-        type: [String], // Changed from String to [String] to support multiple sectors
+    sectors: {
+        type: [String],
         default: []
     },
     isActive: {

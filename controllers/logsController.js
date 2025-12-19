@@ -273,11 +273,7 @@ export const addLog = async (req, res) => {
   try {
     const { action, userId, userEmail, userName, details } = req.body;
 
-    // Check if action is valid
-    const validActions = Logs.schema.path('action').enumValues;
-    if (!validActions.includes(action)) {
-      return res.status(400).json({ message: `Invalid action. Must be one of: ${validActions.join(', ')}` });
-    }
+    // Action is a free-form string, no validation needed
 
     // Create log entry
     const log = await Logs.createLog({

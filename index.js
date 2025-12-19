@@ -3,55 +3,35 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import passport from "passport";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
+import profileRoutes from "./routes/profile.js";
 import alertRoutes from "./routes/alerts.js";
-import notificationRoutes from "./routes/notificationSystem.js";
-import bulkAlertRoutes from "./routes/BulkAlerts.js";
+import bookingRoutes from "./routes/bookings.js";
 import adminRoutes from "./routes/admin.js";
-import profileRoutes from "./routes/Profile.js";
-import archivedAlertRoutes from "./routes/archivedAlerts.js";
-import actionHubRoutes from "./routes/action-hub.js";
-import summaryRoutes from "./routes/summaries.js";
-import brevoAnalyticsRoutes from "./routes/brevoAnalytics.js";
 import subscribersRoutes from "./routes/subscribers.js";
 import logsRoutes from "./routes/logs.js";
-import automatedAlertRoutes from "./routes/automatedAlerts.js";
-import autoUpdateRoutes from "./routes/autoUpdates.js";
-import timeTrackingRoutes from "./routes/timetracking.js";
-import alertMetricsRoutes from "./routes/alertMetrics.js";
-import citySearchRoutes from "./routes/citySearch.js";
-import searchTrackingRoutes from "./routes/searchTracking.js";
-import { scheduleWeeklyDigests } from "./utils/weeklyAlertDigest.js";
-import { scheduleAutomatedAlerts } from "./utils/automatedAlertGenerator.js";
-import { scheduleAutoUpdates } from "./utils/autoUpdateSystem.js";
-import { scheduleAlertArchiving, setSocketIO } from "./utils/alertArchiver.js";
 import { optionalAuth } from "./middleware/auth.js";
-
-import path from "path";
-import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
 
-// CORS configuration - moved to the very beginning
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       "https://www.tourprism.com",
-      "https://tourprism.com", 
-      "http://localhost:3000", 
+      "https://tourprism.com",
+      "https://vos.local",
+      "https://api.vos.local",
+      "http://localhost:3000",
       "http://localhost:3001",
-      "http://192.168.1.7:3000"
+      "http://192.168.1.8:3000"
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -95,15 +75,11 @@ app.use((err, req, res, next) => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["https://www.tourprism.com","https://tourprism.com", "http://localhost:3000", "http://localhost:3001","http://192.168.1.7:3000"],
+    origin: ["https://www.tourprism.com","https://tourprism.com", "https://vos.local", "https://api.vos.local", "http://localhost:3000", "http://localhost:3001","http://192.168.1.8:3000"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }
 });
-
-// Set socket.io instance for alert archiver
-setSocketIO(io);
-
 // Socket.io connection handler
 io.on("connection", (socket) => {
   console.log("New client connected");
@@ -115,81 +91,25 @@ io.on("connection", (socket) => {
 
 export { io };
 
+// Cookie parser needs to be early for authentication to work
+app.use(cookieParser());
+
+// File upload routes need to be defined before JSON parsing middleware
+app.use("/api/bookings", bookingRoutes);
+
 app.use(express.json());
 app.use(passport.initialize());
 
-// Apply optional authentication middleware to all routes for logging
 app.use(optionalAuth);
 
-// Serve uploaded files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 app.use("/auth", authRoutes);
+app.use("/api/profile", profileRoutes);
 app.use("/api/alerts", alertRoutes);
-
-// Add notification routes
-app.use("/api/notifications", notificationRoutes);
-
-// Add bulk alerts routes
-app.use("/api/bulk-alerts", bulkAlertRoutes);
-
-// Add archived alerts routes
-app.use("/api/archived-alerts", archivedAlertRoutes);
-
-// Add admin routes
 app.use("/api/admin", adminRoutes);
-
-// Add profile routes
-app.use("/profile", profileRoutes);
-
-// Add action hub routes
-app.use("/api/action-hub", actionHubRoutes);
-
-// Add summary routes
-app.use("/api/summaries", summaryRoutes);
-
-// Add Brevo email analytics routes
-app.use("/api/email-analytics", brevoAnalyticsRoutes);
-
-// Add subscribers routes
 app.use("/api/subscribers", subscribersRoutes);
-
-// Add logs routes
 app.use("/api/logs", logsRoutes);
 
-// Add automated alerts routes
-app.use("/api/automated-alerts", automatedAlertRoutes);
-
-// Add auto-update routes
-app.use("/api/auto-updates", autoUpdateRoutes);
-
-// Add time tracking routes
-app.use("/api/time-tracking", timeTrackingRoutes);
-
-// Add alert metrics routes
-app.use("/api/alert-metrics", alertMetricsRoutes);
-
-// Add city search routes
-app.use("/api/city-search", citySearchRoutes);
-
-// Add search tracking routes
-app.use("/api/search-tracking", searchTrackingRoutes);
-
 connectDB();
-const HOST = "0.0.0.0"; // Allows external connections
-const PORT = process.env.PORT || 8000;
-
-// Schedule weekly digest emails
-scheduleWeeklyDigests();
- 
-// Schedule automated alert generation
-scheduleAutomatedAlerts();
-
-// Schedule auto-update system
-scheduleAutoUpdates();
-
-// Schedule alert archiving
-scheduleAlertArchiving();
-
-// Use httpServer instead of app
+const HOST = "0.0.0.0";
+const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, HOST, () => console.log(`Server running on port ${PORT}`));

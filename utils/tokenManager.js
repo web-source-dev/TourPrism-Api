@@ -18,8 +18,8 @@ class TokenManager {
     this.refreshTokens = new Map(); // In production, use Redis or database
     this.jwtSecret = process.env.JWT_SECRET;
     this.jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh';
-    this.tokenExpiry = process.env.JWT_EXPIRY || "24h";
-    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || "7d";
+    this.tokenExpiry = process.env.JWT_EXPIRY || "365d";
+    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || "365d";
   }
 
   /**
@@ -40,8 +40,6 @@ class TokenManager {
       const tokenPayload = {
         userId: user._id.toString(),
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         isVerified: user.isVerified,
         isPremium: user.isPremium,
         role: user.role,
@@ -51,7 +49,7 @@ class TokenManager {
         weeklyForecastSubscribedAt: user.weeklyForecastSubscribedAt,
         lastWeeklyForecastReceived: user.lastWeeklyForecastReceived,
         company: user.company,
-        preferences: user.preferences,
+        followedAlerts: user.followedAlerts,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         tokenId: crypto.randomUUID(), // Unique token identifier
@@ -264,16 +262,88 @@ class TokenManager {
   }
 
   /**
-   * Extract token from request headers
+   * Extract token from request - checks cookies first, then Authorization header as fallback
    * @param {Object} req - Express request object
    * @returns {string|null} - Extracted token or null
    */
   extractTokenFromRequest(req) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
+    // First check cookies (primary method)
+    if (req.cookies && req.cookies.authToken) {
+      return req.cookies.authToken;
     }
-    return authHeader.split(' ')[1];
+    
+    // Fallback to Authorization header (for backward compatibility)
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.split(' ')[1];
+    }
+    
+    return null;
+  }
+
+  /**
+   * Set authentication cookie in response
+   * @param {Object} res - Express response object
+   * @param {string} token - JWT token
+   * @param {number} maxAge - Cookie max age in milliseconds
+   */
+  setAuthCookie(res, token, maxAge = null) {
+    // Calculate max age from token expiry if not provided
+    if (!maxAge) {
+      maxAge = this.parseExpiry(this.tokenExpiry);
+    }
+
+    // Determine domain based on environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
+    const domain = isProduction
+      ? '.tourprism.com'
+      : isLocalHttps
+        ? '.vos.local'
+        : undefined; // .tourprism.com or .vos.local allows subdomains
+
+    // Set secure cookie options
+    const cookieOptions = {
+      httpOnly: true, // Prevents JavaScript access (XSS protection)
+      secure: isProduction || isLocalHttps, // Send over HTTPS in production or local HTTPS
+      sameSite: (isProduction || isLocalHttps) ? 'none' : 'lax', // CSRF protection - 'none' for cross-domain HTTPS
+      maxAge: Math.floor(maxAge / 1000), // Convert to seconds
+      path: '/', // Available across entire site
+    };
+
+    // Add domain for production (allows subdomain access)
+    if (domain) {
+      cookieOptions.domain = domain;
+    }
+
+    res.cookie('authToken', token, cookieOptions);
+  }
+
+  /**
+   * Clear authentication cookie
+   * @param {Object} res - Express response object
+   */
+  clearAuthCookie(res) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
+    const domain = isProduction
+      ? '.tourprism.com'
+      : isLocalHttps
+        ? '.vos.local'
+        : undefined;
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction || isLocalHttps,
+      sameSite: (isProduction || isLocalHttps) ? 'none' : 'lax',
+      path: '/',
+    };
+
+    if (domain) {
+      cookieOptions.domain = domain;
+    }
+
+    res.clearCookie('authToken', cookieOptions);
   }
 
   /**
