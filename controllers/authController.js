@@ -19,7 +19,7 @@ const configureGoogleStrategy = () => {
     ? 'https://api.tourprism.com'
     : isLocalHttps
       ? 'https://api.vos.local'
-      : `${process.env.BACKEND_URL || 'http://localhost:5000'}`;
+      : `${process.env.BACKEND_URL || 'http://localhost:5000'}`; 
 
   passport.use(
     new GoogleStrategy(
