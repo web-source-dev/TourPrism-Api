@@ -16,7 +16,7 @@ const configureGoogleStrategy = () => {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
   const baseUrl = isProduction
-    ? 'https://tourprism.onrender.com'
+    ? 'https://api.tourprism.com'
     : isLocalHttps
       ? 'https://api.vos.local'
       : `${process.env.BACKEND_URL || 'http://localhost:5000'}`;
@@ -98,7 +98,7 @@ const configureMicrosoftStrategy = () => {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocalHttps = process.env.NODE_ENV === 'development' && process.env.USE_HTTPS === 'true';
   const baseUrl = isProduction
-    ? 'https://tourprism.onrender.com'
+    ? 'https://api.tourprism.com'
     : isLocalHttps
       ? 'https://api.vos.local:5000'
       : `${process.env.BACKEND_URL || 'http://localhost:5000'}`;
