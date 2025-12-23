@@ -399,11 +399,11 @@ const logout = async (req, res, next) => {
   try {
     const token = tokenManager.extractTokenFromRequest(req);
     const decoded = await getTokenData(req);
-    
+
     if (token) {
       // Blacklist the current token
-      tokenManager.blacklistToken(token, decoded?.tokenId);
-      
+      tokenManager.blacklistToken(token);
+
       // Log logout action
       if (decoded) {
         try {
