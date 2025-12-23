@@ -37,7 +37,6 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -63,7 +62,7 @@ app.options('*', cors(corsOptions));
 // Error handling middleware for CORS
 app.use((err, req, res, next) => {
   if (err.message === 'Not allowed by CORS') {
-    console.log('CORS Error:', err.message);
+  
     return res.status(403).json({
       error: 'CORS Error',
       message: 'Origin not allowed',
