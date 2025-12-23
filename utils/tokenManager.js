@@ -15,11 +15,8 @@ dotenv.config();
 class TokenManager {
   constructor() {
     this.tokenBlacklist = new Set();
-    this.refreshTokens = new Map(); // In production, use Redis or database
     this.jwtSecret = process.env.JWT_SECRET;
-    this.jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh';
     this.tokenExpiry = process.env.JWT_EXPIRY || "365d";
-    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || "365d";
   }
 
   /**
@@ -27,7 +24,7 @@ class TokenManager {
    * @param {Object} user - User object from database
    * @param {Object} collaborator - Optional collaborator object
    * @param {Object} options - Additional options
-   * @returns {Object} - { accessToken, refreshToken, expiresIn }
+   * @returns {Object} - { accessToken, expiresIn }
    */
   generateTokens(user, collaborator = null, options = {}) {
     try {
@@ -76,35 +73,12 @@ class TokenManager {
         audience: 'tourprism-client'
       });
 
-      // Generate refresh token
-      const refreshTokenPayload = {
-        userId: user._id.toString(),
-        tokenId: tokenPayload.tokenId,
-        type: 'refresh',
-        iat: Math.floor(Date.now() / 1000)
-      };
-
-      const refreshToken = jwt.sign(refreshTokenPayload, this.jwtRefreshSecret, {
-        expiresIn: this.refreshTokenExpiry,
-        issuer: 'tourprism-api',
-        audience: 'tourprism-client'
-      });
-
-      // Store refresh token for validation
-      this.refreshTokens.set(tokenPayload.tokenId, {
-        userId: user._id.toString(),
-        refreshToken,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + this.parseExpiry(this.refreshTokenExpiry))
-      });
-
       // Calculate expiry time
       const expiresIn = this.parseExpiry(this.tokenExpiry);
       const expiresAt = new Date(Date.now() + expiresIn);
 
       return {
         accessToken,
-        refreshToken,
         expiresIn: expiresIn,
         expiresAt: expiresAt,
         tokenId: tokenPayload.tokenId
@@ -186,76 +160,13 @@ class TokenManager {
     }
   }
 
-  /**
-   * Refresh an access token using a refresh token
-   * @param {string} refreshToken - Refresh token
-   * @returns {Object|null} - New tokens or null if invalid
-   */
-  async refreshAccessToken(refreshToken) {
-    try {
-      // Verify refresh token
-      const decoded = jwt.verify(refreshToken, this.jwtRefreshSecret, {
-        issuer: 'tourprism-api',
-        audience: 'tourprism-client'
-      });
-
-      if (decoded.type !== 'refresh' || !decoded.tokenId) {
-        return null;
-      }
-
-      // Check if refresh token exists in our store
-      const storedToken = this.refreshTokens.get(decoded.tokenId);
-      if (!storedToken || storedToken.refreshToken !== refreshToken) {
-        return null;
-      }
-
-      // Check if refresh token is expired
-      if (new Date() > storedToken.expiresAt) {
-        this.refreshTokens.delete(decoded.tokenId);
-        return null;
-      }
-
-      // Get fresh user data
-      const user = await User.findById(decoded.userId);
-      if (!user || user.status !== 'active') {
-        this.refreshTokens.delete(decoded.tokenId);
-        return null;
-      }
-
-      // Find collaborator if this was a collaborator token
-      let collaborator = null;
-      if (decoded.isCollaborator) {
-        collaborator = user.collaborators.find(c => c.email === decoded.collaboratorEmail);
-        if (!collaborator || collaborator.status !== 'active') {
-          this.refreshTokens.delete(decoded.tokenId);
-          return null;
-        }
-      }
-
-      // Generate new tokens
-      const newTokens = this.generateTokens(user, collaborator);
-      
-      // Remove old refresh token
-      this.refreshTokens.delete(decoded.tokenId);
-
-      return newTokens;
-    } catch (error) {
-      console.error('Error refreshing token:', error);
-      return null;
-    }
-  }
 
   /**
    * Blacklist a token (logout)
    * @param {string} token - Token to blacklist
-   * @param {string} tokenId - Token ID to also blacklist refresh token
    */
-  blacklistToken(token, tokenId = null) {
+  blacklistToken(token) {
     this.tokenBlacklist.add(token);
-    
-    if (tokenId) {
-      this.refreshTokens.delete(tokenId);
-    }
 
     // Clean up expired blacklisted tokens periodically
     this.cleanupBlacklist();
@@ -387,9 +298,7 @@ class TokenManager {
   getStats() {
     return {
       blacklistedTokens: this.tokenBlacklist.size,
-      activeRefreshTokens: this.refreshTokens.size,
-      tokenExpiry: this.tokenExpiry,
-      refreshTokenExpiry: this.refreshTokenExpiry
+      tokenExpiry: this.tokenExpiry
     };
   }
 
