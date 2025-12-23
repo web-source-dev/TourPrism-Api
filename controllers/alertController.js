@@ -8,7 +8,6 @@ const getAllAlerts = async (req, res) => {
   try {
     const { city, mainType, latitude, longitude, distance, limit = 10, page = 1, sortBy, startDate, endDate, originOnly, activeNow } = req.query;
     
-    console.log('req.query:', req.query);
     const currentDate = new Date();
     const isActiveNow = String(activeNow).toLowerCase() === 'true';
     
@@ -255,8 +254,6 @@ const getAllAlerts = async (req, res) => {
     await Logger.log(req, 'alerts_viewed', {
       filters: { city, mainType, latitude, longitude, distance, limit, page, sortBy, startDate, endDate, originOnly }
     });
-
-    console.log('transformedAlerts:', transformedAlerts);
 
     res.json({
       alerts: transformedAlerts,
