@@ -24,7 +24,9 @@ const {
   deleteSubscriber,
   processAlert,
   triggerAlertGeneration,
-  getAnalytics
+  getAnalytics,
+  sendAlert,
+  getAlertStats
 } = require('../controllers/adminController.js');
 
 const router = express.Router();
@@ -39,7 +41,9 @@ router.patch("/alerts/:alertId/process", authorizeRoles(['admin']), processAlert
 router.post("/alerts/trigger-generation", authorizeRoles(['admin']), triggerAlertGeneration);
 router.post("/alerts/:alertId/duplicate", authorizeRoles(['admin']), duplicateAlert);
 router.post("/alerts/:alertId/archive", authorizeRoles(['admin']), archiveAlert);
+router.post("/alerts/:alertId/send", authorizeRoles(['admin']), sendAlert);
 router.delete("/alerts/:alertId", authorizeRoles(['admin']), deleteAlert);
+router.get("/alerts/stats", authorizeRoles(['admin']), getAlertStats);
 
 // Get hotel savings stats (for feed page stats card)
 router.get("/dashboard/savings/:hotelId", authorizeRoles(['user', 'admin', 'manager', 'viewer' ]), getHotelSavingsStats);

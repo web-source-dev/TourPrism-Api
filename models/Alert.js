@@ -123,58 +123,6 @@ const alertSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
-    // Dynamic "What's Impacted" structure
-    whatsImpacted: [
-      {
-        category: {
-          type: String,
-          required: true,
-        },
-        description: {
-          type: String,
-        },
-        icon: {
-          type: String,
-        },
-        items: [
-          {
-            title: {
-              type: String,
-              required: true,
-            },
-            description: {
-              type: String,
-            },
-          }
-        ],
-      }
-    ],
-    // Dynamic "Action Plan" structure
-    actionPlan: [
-      {
-        category: {
-          type: String,
-          required: true,
-        },
-        description: {
-          type: String,
-        },
-        icon: {
-          type: String,
-        },
-        items: [
-          {
-            title: {
-              type: String,
-              required: true,
-            },
-            description: {
-              type: String,
-            },
-          }
-        ],
-      }
-    ],
     viewCount: {
       type: Number,
       default: 0

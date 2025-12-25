@@ -29,7 +29,7 @@ This guide explains how to migrate your existing database data from the old sche
 - `alertCategory` → `mainType` (mapped to enum values)
 - `alertType` → `subType` (mapped to enum values)
 - `impact` → confidence score calculation
-- `recommendedAction` → `recoveryExpected` and `actionPlan`
+- `recommendedAction` → `recoveryExpected`
 - Location data simplified to single `city` field
 
 #### Users

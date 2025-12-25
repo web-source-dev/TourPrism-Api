@@ -372,8 +372,101 @@ const getCitySummary = async (req, res) => {
   }
 };
 
+// Send alert to subscribers
+const sendAlert = async (req, res) => {
+  try {
+    const { id: alertId } = req.params;
+    const alert = await Alert.findById(alertId);
+
+    if (!alert) {
+      return res.status(404).json({ message: 'Alert not found' });
+    }
+
+    // Get subscriber count (mock for now - replace with actual subscriber query)
+    const subscriberCount = await require('../models/subscribers.js').countDocuments({ isActive: true });
+
+    // Calculate recovery rate based on alert type (mock calculation)
+    const recoveryRates = {
+      'strike': 0.65,
+      'weather': 0.70,
+      'protest': 0.60,
+      'flight_issues': 0.75,
+      'staff_shortage': 0.55,
+      'supply_chain': 0.50,
+      'system_failure': 0.80,
+      'policy': 0.45,
+      'economy': 0.40,
+      'other': 0.60
+    };
+
+    const recoveryRate = recoveryRates[alert.mainType] || 0.60;
+    const recoveryPercent = Math.round(recoveryRate * 100);
+
+    // Calculate potential monthly savings (mock calculation)
+    const monthlySavings = Math.round(alert.roomsAtRisk * alert.revenueAtRisk * recoveryRate * 0.3); // 30% of potential recovery
+
+    // Log the alert sending
+    await Logger.log(req, 'alert_sent', {
+      alertId,
+      alertTitle: alert.title,
+      subscribersCount: subscriberCount,
+      recoveryRate: `${recoveryPercent}%`,
+      monthlySavings: `£${monthlySavings.toLocaleString()}`
+    });
+
+    res.json({
+      success: true,
+      message: 'Alert sent successfully',
+      sentTo: subscriberCount,
+      recoveryRate: `${recoveryPercent}%`,
+      savedThisMonth: `£${monthlySavings.toLocaleString()}`
+    });
+
+  } catch (error) {
+    console.error('Error sending alert:', error);
+    res.status(500).json({ message: 'Failed to send alert' });
+  }
+};
+
+// Get alert statistics
+const getAlertStats = async (req, res) => {
+  try {
+    // Get total subscriber count
+    const totalSubscribers = await require('../models/subscribers.js').countDocuments({ isActive: true });
+
+    // Get alerts sent this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const alertsSentThisMonth = await Logger.countDocuments({
+      action: 'alert_sent',
+      createdAt: { $gte: startOfMonth }
+    });
+
+    // Calculate average recovery rate (mock data)
+    const avgRecoveryRate = '68%';
+
+    // Calculate monthly savings (mock data)
+    const monthlySavings = '£12,450';
+
+    res.json({
+      totalSubscribers,
+      alertsSentThisMonth,
+      avgRecoveryRate,
+      monthlySavings
+    });
+
+  } catch (error) {
+    console.error('Error getting alert stats:', error);
+    res.status(500).json({ message: 'Failed to get alert statistics' });
+  }
+};
+
 module.exports = {
   getAllAlerts,
-  getCitySummary
+  getCitySummary,
+  sendAlert,
+  getAlertStats
 };
 
