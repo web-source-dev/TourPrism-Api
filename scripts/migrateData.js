@@ -230,24 +230,11 @@ async function migrateAlerts() {
         confidenceSources: [],
         tone: 'Early', // Default tone
         header: oldAlert.title || '',
-        whatsImpacted: [{
-          category: 'General',
-          description: oldAlert.impact || '',
-          icon: 'alert-triangle',
-          items: [{
-            title: 'Impact Details',
-            description: oldAlert.description || ''
-          }]
-        }],
-        actionPlan: [{
-          category: 'Recommended Actions',
-          description: 'Actions to take',
-          icon: 'check-circle',
-          items: [{
-            title: 'Recommended Action',
-            description: oldAlert.recommendedAction || ''
-          }]
-        }],
+        roomsAtRisk: oldAlert.roomsAtRisk || 0,
+        revenueAtRisk: oldAlert.revenueAtRisk || 0,
+        recoveryRate: oldAlert.recoveryRate || 0,
+        roomsSaved: oldAlert.roomsSaved || 0,
+        revenueSaved: oldAlert.revenueSaved || 0,
         viewCount: oldAlert.viewCount || 0,
         followedBy: oldAlert.followedBy || []
       };

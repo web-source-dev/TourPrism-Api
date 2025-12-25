@@ -116,86 +116,6 @@ const generateConfidenceSources = (mainType) => {
 const FIXED_START_DATE = new Date("2025-12-05T00:00:00Z");
 const FIXED_END_DATE = new Date("2025-12-30T23:59:59Z");
 
-// Generate sample whatsImpacted data based on disruption type
-const generateWhatsImpacted = (mainType) => {
-  const impactMap = {
-    strike: [
-      {
-        category: 'Airports & Flights',
-        description: 'Flight operations affected',
-        icon: 'plane',
-        items: [
-          { title: 'Flight cancellations', description: 'Multiple routes impacted' },
-          { title: 'Passenger delays', description: 'Long queues and waiting times' }
-        ]
-      }
-    ],
-    weather: [
-      {
-        category: 'Flight Operations',
-        description: 'Weather-related flight disruptions',
-        icon: 'cloud-snow',
-        items: [
-          { title: 'Flight cancellations', description: 'Due to safety concerns' },
-          { title: 'Delays and diversions', description: 'Weather-dependent routing' }
-        ]
-      }
-    ],
-    // Default structure
-    default: [
-      {
-        category: 'Transportation',
-        description: 'Travel services affected',
-        icon: 'car',
-        items: [
-          { title: 'Service disruptions', description: 'Delays and cancellations expected' }
-        ]
-      }
-    ]
-  };
-
-  return impactMap[mainType] || impactMap.default;
-};
-
-// Generate sample actionPlan data based on disruption type
-const generateActionPlan = (mainType) => {
-  const actionMap = {
-    strike: [
-      {
-        category: 'Immediate Actions',
-        description: 'Steps to take right now',
-        icon: 'zap',
-        items: [
-          { title: 'Monitor flight status', description: 'Check airline websites and apps' },
-          { title: 'Contact airline directly', description: 'Confirm booking status' }
-        ]
-      }
-    ],
-    weather: [
-      {
-        category: 'Weather Monitoring',
-        description: 'Stay informed about conditions',
-        icon: 'eye',
-        items: [
-          { title: 'Check weather forecasts', description: 'Monitor updates regularly' }
-        ]
-      }
-    ],
-    // Default structure
-    default: [
-      {
-        category: 'General Actions',
-        description: 'Recommended steps',
-        icon: 'list',
-        items: [
-          { title: 'Monitor situation', description: 'Stay updated on developments' }
-        ]
-      }
-    ]
-  };
-
-  return actionMap[mainType] || actionMap.default;
-};
 
 // Create sample alerts
 const createSampleAlerts = async () => {
@@ -252,8 +172,6 @@ const createSampleAlerts = async () => {
           recoveryExpected: template.recoveryExpected,
           tone: ALERT_TONES[Math.floor(Math.random() * ALERT_TONES.length)],
           header: template.title.replace('Edinburgh', city).replace('London', city),
-          whatsImpacted: generateWhatsImpacted(template.mainType),
-          actionPlan: generateActionPlan(template.mainType),
           originCity: city,
           roomsAtRisk: Math.floor(Math.random() * 100) + 10,
           revenueAtRisk: Math.floor(Math.random() * 50000) + 5000,

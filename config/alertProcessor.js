@@ -192,8 +192,6 @@ class AlertProcessor {
         status: confidenceData.score >= this.confidenceThreshold ? 'approved' : 'pending',
         sectors: this.generateSectors(representative.mainType),
         recoveryExpected: this.generateRecoveryExpected(representative.mainType),
-        whatsImpacted: this.generateWhatsImpacted(representative.mainType, representative.city),
-        actionPlan: this.generateActionPlan(representative.mainType, representative.city),
         originCity: representative.city
       };
 
@@ -420,130 +418,6 @@ class AlertProcessor {
     return recoveryMap[mainType] || 'Variable';
   }
 
-  /**
-   * Generate "What's Impacted" structure
-   */
-  generateWhatsImpacted(mainType, city) {
-    const impactMap = {
-      strike: [
-        {
-          category: 'Airports & Flights',
-          description: 'Flight operations affected',
-          icon: 'plane',
-          items: [
-            { title: 'Flight cancellations', description: 'Multiple routes impacted' },
-            { title: 'Passenger delays', description: 'Long queues and waiting times' },
-            { title: 'Connection disruptions', description: 'Transfer passengers affected' }
-          ]
-        },
-        {
-          category: 'Ground Transportation',
-          description: 'Rail and road access affected',
-          icon: 'train',
-          items: [
-            { title: 'Rail services', description: 'Train schedules disrupted' },
-            { title: 'Taxi availability', description: 'Increased demand at airports' }
-          ]
-        }
-      ],
-      weather: [
-        {
-          category: 'Flight Operations',
-          description: 'Weather-related flight disruptions',
-          icon: 'cloud-snow',
-          items: [
-            { title: 'Flight cancellations', description: 'Due to safety concerns' },
-            { title: 'Delays and diversions', description: 'Weather-dependent routing' }
-          ]
-        },
-        {
-          category: 'Ground Transport',
-          description: 'Road and rail conditions',
-          icon: 'car',
-          items: [
-            { title: 'Road closures', description: 'Unsafe driving conditions' },
-            { title: 'Rail delays', description: 'Signal and track issues' }
-          ]
-        }
-      ],
-      // Add more disruption types as needed
-    };
-
-    return impactMap[mainType] || [
-      {
-        category: 'General Impact',
-        description: 'Disruption affecting travel',
-        icon: 'alert-triangle',
-        items: [
-          { title: 'Travel disruptions', description: 'Various travel services affected' }
-        ]
-      }
-    ];
-  }
-
-  /**
-   * Generate "Action Plan" structure
-   */
-  generateActionPlan(mainType, city) {
-    const actionMap = {
-      strike: [
-        {
-          category: 'Immediate Actions',
-          description: 'Steps to take right now',
-          icon: 'zap',
-          items: [
-            { title: 'Monitor flight status', description: 'Check airline websites and apps' },
-            { title: 'Contact airline directly', description: 'Confirm booking status' },
-            { title: 'Consider alternative routes', description: 'Look for connecting flights' }
-          ]
-        },
-        {
-          category: 'Contingency Planning',
-          description: 'Prepare for extended disruption',
-          icon: 'calendar',
-          items: [
-            { title: 'Book alternative flights', description: 'If cancellation confirmed' },
-            { title: 'Arrange ground transport', description: 'Plan for airport transfers' },
-            { title: 'Update travel insurance', description: 'Document any changes' }
-          ]
-        }
-      ],
-      weather: [
-        {
-          category: 'Weather Monitoring',
-          description: 'Stay informed about conditions',
-          icon: 'eye',
-          items: [
-            { title: 'Check weather forecasts', description: 'Monitor updates regularly' },
-            { title: 'Follow airline communications', description: 'Stay updated on flight status' }
-          ]
-        },
-        {
-          category: 'Flexible Planning',
-          description: 'Prepare for changes',
-          icon: 'refresh-cw',
-          items: [
-            { title: 'Have backup travel dates', description: 'Consider flexible booking options' },
-            { title: 'Monitor road conditions', description: 'Check for alternative routes' }
-          ]
-        }
-      ],
-      // Add more disruption types as needed
-    };
-
-    return actionMap[mainType] || [
-      {
-        category: 'General Actions',
-        description: 'Recommended steps',
-        icon: 'list',
-        items: [
-          { title: 'Monitor situation', description: 'Stay updated on developments' },
-          { title: 'Contact service providers', description: 'Confirm your arrangements' },
-          { title: 'Prepare contingency plans', description: 'Have backup options ready' }
-        ]
-      }
-    ];
-  }
 
   /**
    * Generate "when" text for header generation

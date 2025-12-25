@@ -24,110 +24,180 @@ class GrokService {
         return [];
       }
 
-      // Customize the prompt with the specific city
-      const prompt = `You are a hotel disruption scout for ${city}.
+      // Get existing alerts to avoid duplicates
+      const existingTitles = await this.getExistingAlertTitles(city);
+      console.log(`Found ${existingTitles.length} existing alerts for ${city}`);
 
-Find ANYTHING that could stop guests arriving or checking in next 30 days.
+      const disruptions = [];
+      const maxDisruptions = 5; // Generate up to 5 disruptions per city
+
+      for (let i = 0; i < maxDisruptions; i++) {
+        try {
+          console.log(`Generating disruption ${i + 1}/${maxDisruptions} for ${city}...`);
+
+          const disruption = await this.generateSingleDisruption(city, existingTitles, disruptions);
+          if (disruption) {
+            disruptions.push(disruption);
+            existingTitles.push(disruption.title); // Add to existing titles to avoid duplicates in same batch
+            console.log(`✅ Generated: ${disruption.title}`);
+          } else {
+            console.log(`⚠️ No valid disruption generated for attempt ${i + 1}`);
+          }
+
+          // Small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+          console.error(`Error generating disruption ${i + 1}:`, error.message);
+          continue; // Continue with next disruption
+        }
+      }
+
+      console.log(`Grok generated ${disruptions.length} valid disruptions for ${city}`);
+      return disruptions;
+
+    } catch (error) {
+      console.error('Error generating disruptions with Grok:', error.response?.data || error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Generate a single disruption, avoiding duplicates
+   */
+  async generateSingleDisruption(city, existingTitles, currentBatchDisruptions) {
+    // Combine existing titles with current batch titles
+    const allTitles = [...existingTitles, ...currentBatchDisruptions.map(d => d.title)];
+
+    const prompt = `You are a hotel disruption scout for ${city}.
+
+Find ONE SPECIFIC disruption that could stop guests arriving or checking in within the next 30 days.
 
 VALID CATEGORIES (use exactly these):
 Main Types: strike, weather, protest, flight_issues, staff_shortage, supply_chain, system_failure, policy, economy, other
 
-Sub Types:
+Sub Types by Main Type:
 - strike: airline_pilot, rail, ferry, ground_staff, baggage_handlers
 - weather: snow, flood, storm, fog, ice, hurricane, heatwave, cold_snap
 - protest: march, blockade, sit_in, demonstration, rally, riot, civil_unrest
-- flight_issues: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- staff_shortage: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- supply_chain: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- system_failure: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- policy: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- economy: airline_pilot, rail, ferry, ground_staff, baggage_handlers
-- other: airline_pilot, rail, ferry, ground_staff, baggage_handlers
+- flight_issues: delay, cancellation, grounding, overbooking, airspace_restriction, runway_closure
+- staff_shortage: airport_check_in, hotel_cleaning, pilot_shortage, crew_absence
+- supply_chain: jet_fuel_shortage, catering_delay, laundry_crisis, toiletries_shortage
+- system_failure: IT_crash, border_control_outage, booking_system_down, e_gates_failure, ATM_system_failure
+- policy: travel_ban, visa_change, quarantine_rule, advisory, embargo
+- economy: pound_surge, recession, tourist_drop, exchange_rate_crash, FX_volatility, inflation_hit
+- other: road_closure, festival_chaos, construction_delay, mechanical_failure
 
-Rules:
-- Must affect ${city} arrivals
-- Global events OK if causal link (e.g., Ryanair Rome strike → Rome-${city} flights)
-- Use specific sub-event in title (e.g., "Ryanair Rome-${city} pilot strike")
-- Output ONLY valid JSON array - no extra text, no markdown, no explanations
-- Use proper URLs like "https://www.reuters.com/example" or "https://www.bbc.com/example"
-- Dates should be in YYYY-MM-DD format
+CRITICAL RULES:
+- Must affect ${city} arrivals specifically
+- Global events OK if they have direct causal link to ${city}
+- Use realistic, specific sub-events in title
+- Dates should be realistic future dates within 30 days
 - Use EXACT category names from the list above
 
-[{"city":"${city}","main_type":"strike","sub_type":"airline_pilot","title":"Ryanair Rome-${city} pilot strike","start_date":"2025-12-25","end_date":"2025-12-26","source":"Reuters","url":"https://www.reuters.com/business/aerospace-defense/ryanair-pilot-strike-rome-2025-12-20/","summary":"All Ryanair flights from Rome to ${city} cancelled due to pilot strike. Italian guests may not arrive."}]`;
+DO NOT GENERATE THESE EXISTING ALERTS:
+${allTitles.map(title => `- "${title}"`).join('\n')}
 
-      const response = await axios.post(`${this.baseURL}/chat/completions`, {
-        messages: [{ role: 'user', content: prompt }],
-        model: 'grok-4-1-fast-reasoning',
-        temperature: 0.7,
-        max_tokens: 2000
-      }, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 60000
-      });
+Output ONLY a single valid JSON object - no extra text, no markdown, no explanations, no arrays.
 
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('No content received from Grok API');
+Example format:
+{"city":"${city}","main_type":"strike","sub_type":"airline_pilot","title":"Ryanair Rome-${city} pilot strike","start_date":"2025-12-25","end_date":"2025-12-26","source":"Reuters","url":"https://www.reuters.com/business/aerospace-defense/ryanair-pilot-strike-rome-2025-12-20/","summary":"All Ryanair flights from Rome to ${city} cancelled due to pilot strike. Italian guests may not arrive."}`;
+
+    const response = await axios.post(`${this.baseURL}/chat/completions`, {
+      messages: [{ role: 'user', content: prompt }],
+      model: 'grok-4-1-fast-reasoning',
+      temperature: 0.8, // Slightly higher temperature for more variety
+      max_tokens: 20000 // Increased token limit for detailed responses
+    }, {
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('No content received from Grok API');
+    }
+
+    // Clean the content - remove any markdown or extra text
+    let cleanContent = content.trim();
+
+    // Remove markdown code blocks if present
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    // Try to extract JSON object if there's extra text
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanContent = jsonMatch[0];
+    }
+
+    console.log('Single disruption response:', cleanContent.substring(0, 150) + '...');
+
+    // Parse and validate JSON
+    const disruption = JSON.parse(cleanContent);
+
+    // Validate structure (single object, not array)
+    if (typeof disruption !== 'object' || Array.isArray(disruption)) {
+      throw new Error('Response is not a valid JSON object');
+    }
+
+    // Validate required fields
+    const requiredFields = ['city', 'main_type', 'sub_type', 'title', 'start_date', 'end_date', 'source', 'url', 'summary'];
+    for (const field of requiredFields) {
+      if (!disruption[field]) {
+        throw new Error(`Missing required field: ${field}`);
       }
+    }
 
-      // Clean the content - remove any markdown or extra text
-      let cleanContent = content.trim();
+    // Additional validations
+    if (disruption.city !== city) {
+      throw new Error(`Generated disruption city "${disruption.city}" does not match requested city "${city}"`);
+    }
 
-      // Remove markdown code blocks if present
-      if (cleanContent.startsWith('```json')) {
-        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (cleanContent.startsWith('```')) {
-        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
+    if (allTitles.includes(disruption.title)) {
+      throw new Error(`Generated title "${disruption.title}" already exists`);
+    }
 
-      // Try to extract JSON array if there's extra text
-      const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        cleanContent = jsonMatch[0];
-      }
+    // Transform to internal format
+    return {
+      city: disruption.city,
+      mainType: disruption.main_type,
+      subType: disruption.sub_type,
+      title: disruption.title,
+      start_date: disruption.start_date,
+      end_date: disruption.end_date,
+      source: disruption.source,
+      url: disruption.url,
+      summary: disruption.summary,
+      sourceCredibility: 'major_news'
+    };
+  }
 
-      console.log('Grok response content:', cleanContent.substring(0, 200) + '...');
+  /**
+   * Get existing alert titles for a city to avoid duplicates
+   */
+  async getExistingAlertTitles(city) {
+    try {
+      const Alert = require('../models/Alert.js');
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-      // Parse and validate JSON
-      const disruptions = JSON.parse(cleanContent);
+      const existingAlerts = await Alert.find({
+        city: city,
+        startDate: { $lte: thirtyDaysFromNow },
+        endDate: { $gte: new Date() },
+        status: { $ne: 'expired' }
+      }).select('title').lean();
 
-      // Validate structure
-      if (!Array.isArray(disruptions)) {
-        throw new Error('Response is not a valid JSON array');
-      }
-
-      // Transform and validate disruptions
-      const validatedDisruptions = disruptions.filter(disruption => {
-        return disruption.city === city &&
-               disruption.main_type &&
-               disruption.sub_type &&
-               disruption.title &&
-               disruption.start_date &&
-               disruption.end_date &&
-               disruption.source &&
-               disruption.url &&
-               disruption.summary;
-      }).map(disruption => ({
-        city: disruption.city,
-        mainType: disruption.main_type,
-        subType: disruption.sub_type,
-        title: disruption.title,
-        start_date: disruption.start_date,
-        end_date: disruption.end_date,
-        source: disruption.source,
-        url: disruption.url,
-        summary: disruption.summary,
-        sourceCredibility: 'major_news' // Assume Grok-generated content is from major news sources
-      }));
-
-      console.log(`Grok generated ${validatedDisruptions.length} valid disruptions for ${city}`);
-      return validatedDisruptions;
-
+      return existingAlerts.map(alert => alert.title);
     } catch (error) {
-      console.error('Error generating disruptions with Grok:', error.response?.data || error.message);
+      console.error('Error fetching existing alert titles:', error);
       return [];
     }
   }

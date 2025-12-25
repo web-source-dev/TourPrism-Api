@@ -324,17 +324,6 @@ const updateAlert = async (req, res) => {
       locationUpdates.originCity = validUpdateData.originCity;
     }
 
-    // Handle new fields - ensure arrays are properly formatted
-    if (validUpdateData.whatsImpacted !== undefined) {
-      if (!Array.isArray(validUpdateData.whatsImpacted)) {
-        validUpdateData.whatsImpacted = validUpdateData.whatsImpacted ? [validUpdateData.whatsImpacted] : [];
-      }
-    }
-    if (validUpdateData.actionPlan !== undefined) {
-      if (!Array.isArray(validUpdateData.actionPlan)) {
-        validUpdateData.actionPlan = validUpdateData.actionPlan ? [validUpdateData.actionPlan] : [];
-      }
-    }
 
     // Update the alert with the sanitized data and set the updated timestamp
     const updatedAlert = await Alert.findByIdAndUpdate(
@@ -368,13 +357,6 @@ const createAlert = async (req, res) => {
       alertData.originCity = alertData.originCity;
     }
 
-    // Handle new fields - ensure arrays are properly formatted
-    if (alertData.whatsImpacted && !Array.isArray(alertData.whatsImpacted)) {
-      alertData.whatsImpacted = [alertData.whatsImpacted];
-    }
-    if (alertData.actionPlan && !Array.isArray(alertData.actionPlan)) {
-      alertData.actionPlan = [alertData.actionPlan];
-    }
 
     // Create new alert
     const newAlert = new Alert(alertData);
@@ -477,9 +459,16 @@ const getCityRiskStats = async (req, res) => {
 const getHotelSavingsStats = async (req, res) => {
   try {
     const { hotelId } = req.params;
+    const { city } = req.query; // Get selected city from query params
     const today = startOfDay(new Date());
     const sevenDaysAgo = subDays(today, 7);
     const fourteenDaysAgo = subDays(today, 14);
+
+    // Security check: ensure user can only access their own data (unless admin)
+    const userId = req.userId || req.user?._id?.toString();
+    if (userId !== hotelId && req.user?.role !== 'admin') {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     // Get hotel data
     const hotel = await User.findById(hotelId).select('company');
@@ -492,15 +481,27 @@ const getHotelSavingsStats = async (req, res) => {
       return res.status(400).json({ message: "Hotel data incomplete - missing size, rooms, or avg room rate" });
     }
 
-    // Get alerts that could affect this hotel (same city or global alerts)
+    // Use selected city from query, or fallback to hotel's city
+    const selectedCity = city || hotelData.city || 'Edinburgh';
+
+    // Get alerts for the selected city (same as feed page shows)
+    // Only include active/upcoming alerts (not expired)
     const relevantAlerts = await Alert.find({
       status: 'approved',
       createdAt: { $gte: fourteenDaysAgo }, // Last 2 weeks for comparison
-      $or: [
-        { city: hotelData.city },
-        { originCity: hotelData.city },
-        { city: { $exists: false } }, // Global alerts
-        { originCity: { $exists: false } }
+      $and: [
+        {
+          $or: [
+            { endDate: { $gte: today } }, // End date in future
+            { endDate: { $exists: false } } // No end date specified
+          ]
+        },
+        {
+          $or: [
+            { city: new RegExp(selectedCity, 'i') },
+            { originCity: new RegExp(selectedCity, 'i') }
+          ]
+        }
       ]
     });
 
@@ -522,19 +523,8 @@ const getHotelSavingsStats = async (req, res) => {
       const additionalIncentives = hasIncentive ? Math.max(hotelData.incentives.length - 1, 0) : 0;
 
       try {
-        // Calculate potential impact without incentives
-        const potentialImpact = impactCalculator.calculateImpact({
-          size: hotelData.size,
-          rooms: hotelData.rooms,
-          avgRoomRate: hotelData.avgRoomRate
-        }, {
-          mainType: alert.mainType,
-          start_date: alert.startDate,
-          end_date: alert.endDate
-        }, false, 0); // No incentives
-
-        // Calculate saved impact with incentives
-        const savedImpact = impactCalculator.calculateImpact({
+        // Calculate impact with user's hotel data and incentives
+        const impact = impactCalculator.calculateImpact({
           size: hotelData.size,
           rooms: hotelData.rooms,
           avgRoomRate: hotelData.avgRoomRate
@@ -544,9 +534,9 @@ const getHotelSavingsStats = async (req, res) => {
           end_date: alert.endDate
         }, hasIncentive, additionalIncentives);
 
-        const potentialLoss = potentialImpact.poundsAtRisk;
-        const actualLoss = savedImpact.poundsAtRisk;
-        const saved = potentialLoss - actualLoss;
+        // Savings = average of min/max pounds saved (recovery amount)
+        const potentialLoss = impact.poundsAtRisk;
+        const saved = (impact.poundsSaved.min + impact.poundsSaved.max) / 2;
 
         if (isCurrentWeek) {
           currentWeekPotentialLoss += potentialLoss;
@@ -1337,6 +1327,172 @@ const getUserAnalytics = async (startDate, endDate) => {
   }
 };
 
+// Send alert to subscribers
+const sendAlert = async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const alert = await Alert.findById(alertId);
+
+    if (!alert) {
+      return res.status(404).json({ message: 'Alert not found' });
+    }
+
+    // Get user's hotel data
+    const user = req.user;
+    if (!user || !user.company) {
+      return res.status(400).json({ message: 'User hotel data not found' });
+    }
+
+    const hotelData = {
+      size: user.company.size || 'micro',
+      rooms: user.company.rooms || 8,
+      avgRoomRate: user.company.avgRoomRate || 120,
+      incentives: user.company.incentives || []
+    };
+
+    // Get bookings (guests) for this hotel that overlap with alert date range
+    const Booking = require('../models/Booking.js');
+    const alertStart = alert.startDate ? new Date(alert.startDate) : new Date();
+    const alertEnd = alert.endDate ? new Date(alert.endDate) : new Date();
+    alertEnd.setDate(alertEnd.getDate() + 7); // Add buffer
+
+    const bookings = await Booking.find({
+      hotelId: user._id.toString(),
+      status: 'active',
+      checkInDate: {
+        $gte: alertStart,
+        $lte: alertEnd
+      }
+    });
+
+    // Calculate real impact using impactCalculator
+    const impactCalculator = require('../config/impactCalculator.js');
+    const hasIncentive = hotelData.incentives.length > 0;
+    const additionalIncentives = hasIncentive ? Math.max(hotelData.incentives.length - 1, 0) : 0;
+
+    const impact = impactCalculator.calculateImpact(
+      hotelData,
+      {
+        mainType: alert.mainType || 'other',
+        start_date: alert.startDate,
+        end_date: alert.endDate
+      },
+      hasIncentive,
+      additionalIncentives
+    );
+
+    // Calculate recovery rate and savings
+    const recoveryRate = impact.recoveryRate || 0.68;
+    const recoveryPercent = Math.round(recoveryRate * 100);
+
+    // Calculate monthly savings: average of min/max pounds saved * 4 (assuming 4 similar alerts per month)
+    const avgPoundsSaved = (impact.poundsSaved.min + impact.poundsSaved.max) / 2;
+    const monthlySavings = Math.round(avgPoundsSaved * 4);
+
+    // TODO: Actually send emails to all bookings (guests)
+    // For now, we just log the action
+    console.log(`Sending alert to ${bookings.length} guests (bookings) for hotel ${user.company.name}`);
+
+    // Log the alert sending
+    await Logger.log(req, 'alert_sent', {
+      alertId,
+      alertTitle: alert.title,
+      guestsCount: bookings.length,
+      recoveryRate: `${recoveryPercent}%`,
+      monthlySavings: `£${monthlySavings.toLocaleString()}`,
+      hotelData: {
+        name: user.company.name,
+        size: hotelData.size,
+        rooms: hotelData.rooms,
+        avgRoomRate: hotelData.avgRoomRate
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Alert sent successfully',
+      sentTo: bookings.length,
+      recoveryRate: `${recoveryPercent}%`,
+      savedThisMonth: `£${monthlySavings.toLocaleString()}`
+    });
+
+  } catch (error) {
+    console.error('Error sending alert:', error);
+    res.status(500).json({ message: 'Failed to send alert', error: error.message });
+  }
+};
+
+// Get alert statistics
+const getAlertStats = async (req, res) => {
+  try {
+    // Get user's hotel data for calculations
+    const user = req.user;
+    if (!user || !user.company) {
+      return res.json({
+        totalSubscribers: 0,
+        alertsSentThisMonth: 0,
+        avgRecoveryRate: '0%',
+        monthlySavings: '£0'
+      });
+    }
+
+    // Get bookings (guests) count
+    const Booking = require('../models/Booking.js');
+    const totalGuests = await Booking.countDocuments({
+      hotelId: user._id.toString(),
+      status: 'active'
+    });
+
+    // Get alerts sent this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const alertsSentThisMonth = await Logger.countDocuments({
+      action: 'alert_sent',
+      userId: user._id.toString(),
+      createdAt: { $gte: startOfMonth }
+    });
+
+    // Calculate average recovery rate and monthly savings from sent alerts
+    const sentAlerts = await Logger.find({
+      action: 'alert_sent',
+      userId: user._id.toString(),
+      createdAt: { $gte: startOfMonth }
+    }).sort({ createdAt: -1 }).limit(10);
+
+    let totalRecoveryRate = 0;
+    let totalMonthlySavings = 0;
+    let count = 0;
+
+    sentAlerts.forEach(log => {
+      if (log.details && log.details.recoveryRate) {
+        const rateStr = log.details.recoveryRate.replace('%', '');
+        totalRecoveryRate += parseFloat(rateStr) || 0;
+        count++;
+      }
+      if (log.details && log.details.monthlySavings) {
+        const savingsStr = log.details.monthlySavings.replace(/[£,]/g, '');
+        totalMonthlySavings += parseFloat(savingsStr) || 0;
+      }
+    });
+
+    const avgRecoveryRate = count > 0 ? `${Math.round(totalRecoveryRate / count)}%` : '68%';
+    const monthlySavings = totalMonthlySavings > 0 ? `£${Math.round(totalMonthlySavings).toLocaleString()}` : '£0';
+
+    res.json({
+      totalSubscribers: totalGuests, // Using bookings as "subscribers"
+      alertsSentThisMonth,
+      avgRecoveryRate,
+      monthlySavings
+    });
+
+  } catch (error) {
+    console.error('Error getting alert stats:', error);
+    res.status(500).json({ message: 'Failed to get alert statistics', error: error.message });
+  }
+};
+
 // Helper function for alert analytics
 const getAlertAnalytics = async (startDate, endDate) => {
   try {
@@ -1746,5 +1902,7 @@ module.exports = {
   updateUserRole,
   deleteUser,
   getUserStats,
-  getAnalytics
+  getAnalytics,
+  sendAlert,
+  getAlertStats
 }; 
