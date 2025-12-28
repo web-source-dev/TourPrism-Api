@@ -39,22 +39,12 @@ const alertSchema = new mongoose.Schema(
     },
     // Enhanced categorization for fetched alerts
     mainType: {
-      type: String,
-      enum: ['strike', 'weather', 'protest', 'flight_issues', 'staff_shortage',
-             'supply_chain', 'system_failure', 'policy', 'economy', 'other']
+      type: String
+      // Enum removed to allow flexible categorization from various sources
     },
     subType: {
-      type: String,
-      enum: ['airline_pilot', 'rail', 'ferry', 'ground_staff', 'baggage_handlers',
-             'snow', 'flood', 'storm', 'fog', 'ice', 'hurricane', 'heatwave', 'cold_snap',
-             'march', 'blockade', 'sit_in', 'demonstration', 'rally', 'riot', 'civil_unrest',
-             'delay', 'cancellation', 'grounding', 'overbooking', 'airspace_restriction', 'runway_closure',
-             'airport_check_in', 'hotel_cleaning', 'crew_absence',
-             'jet_fuel_shortage', 'catering_delay', 'laundry_crisis', 'toiletries_shortage',
-             'it_crash', 'border_control_outage', 'booking_system_down', 'e_gates_failure', 'atm_failure', 'air_traffic_down',
-             'travel_ban', 'visa_change', 'quarantine_rule', 'advisory', 'embargo',
-             'pound_surge', 'recession', 'tourist_drop', 'exchange_rate_crash', 'fx_volatility', 'inflation_hit',
-             'road_closure', 'festival_chaos', 'construction_delay', 'mechanical_failure', 'natural_disaster', 'volcano', 'earthquake', 'wildfire']
+      type: String
+      // Enum removed to allow flexible categorization from various sources
     },
     // Origin city for global events affecting local areas
     originCity: {

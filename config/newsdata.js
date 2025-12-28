@@ -14,31 +14,90 @@ class NewsDataService {
   async fetchNews(params = {}) {
     try {
       if (!this.apiKey) {
-        throw new Error('NewsData API key not configured');
+        console.warn('NewsData API key not configured, skipping NewsData fetch');
+        return [];
       }
 
-      const defaultParams = {
-        apikey: this.apiKey,
-        language: 'en',
-        size: 50, // Max articles per request
-        ...params
-      };
+      const { NEWSDATA_CONFIG } = require('./constants.js');
+      const allDisruptions = [];
 
-      // Use a very simple query to test if the API works
-      const disruptionQuery = 'Edinburgh';
+      // Fetch news for both Edinburgh and London
+      for (const city of CITIES) {
+        try {
+          console.log(`📰 Fetching NewsData for ${city}...`);
 
-      const requestParams = {
-        ...defaultParams,
-        q: disruptionQuery,
-        ...params
-      };
+          // Use simple city-based query - NewsData API works better with simple queries
+          const cityQuery = city === 'Edinburgh' ? 'Edinburgh' : 'London';
 
-      // Temporarily return empty array due to API issues
-      console.log('NewsData API temporarily disabled due to 422 errors');
-      return [];
+          // Make multiple requests with different disruption keywords to get comprehensive results
+          const disruptionQueries = [
+            `${cityQuery} strike`,
+            `${cityQuery} weather`,
+            `${cityQuery} protest`,
+            `${cityQuery} flight`,
+            `${cityQuery} staff shortage`,
+            `${cityQuery} system failure`
+          ];
+
+          for (const query of disruptionQueries) {
+            try {
+              const requestParams = {
+                apikey: this.apiKey,
+                q: query,
+                language: 'en',
+                country: 'gb', // Focus on UK news
+                category: 'business,politics,environment', // Removed 'travel' as it's not a valid category
+                size: 10, // Smaller size per query to avoid limits
+                ...params
+              };
+
+              const response = await axios.get(`${this.baseURL}/news`, {
+                params: requestParams,
+                timeout: 30000
+              });
+
+              if (response.data && response.data.results) {
+                const articles = response.data.results;
+                console.log(`📰 Found ${articles.length} articles for query: ${query}`);
+
+                // Transform articles to disruptions
+                for (const article of articles) {
+                  const disruption = this.transformArticleToDisruption(article);
+                  if (disruption && disruption.city === city) {
+                    // Avoid duplicates by checking title
+                    const isDuplicate = allDisruptions.some(d => d.title === disruption.title);
+                    if (!isDuplicate) {
+                      allDisruptions.push(disruption);
+                    }
+                  }
+                }
+              }
+
+              // Small delay between queries to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 500));
+
+            } catch (queryError) {
+              console.error(`❌ Error with query "${query}":`, queryError.response?.data || queryError.message);
+              // Continue with next query even if one fails
+              continue;
+            }
+          }
+
+          // Small delay between city requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+          console.error(`❌ Error fetching NewsData for ${city}:`, error.response?.data || error.message);
+          // Continue with next city even if one fails
+          continue;
+        }
+      }
+
+      console.log(`📰 NewsData returned ${allDisruptions.length} total disruptions`);
+      return allDisruptions;
 
     } catch (error) {
-      console.error('Error fetching news from NewsData:', error);
+      console.error('Error fetching news from NewsData:', error.response?.data || error.message);
       return [];
     }
   }
@@ -46,33 +105,91 @@ class NewsDataService {
   async fetchArchivedNews(fromDate, toDate, params = {}) {
     try {
       if (!this.apiKey) {
-        throw new Error('NewsData API key not configured');
+        console.warn('NewsData API key not configured, skipping archived news fetch');
+        return [];
       }
 
-      const defaultParams = {
-        apikey: this.apiKey,
-        language: 'en',
-        from_date: fromDate,
-        to_date: toDate,
-        size: 50, // Max articles per request
-        ...params
-      };
+      const allDisruptions = [];
 
-      // Use a very simple query to test if the API works
-      const disruptionQuery = 'Edinburgh';
+      // Fetch archived news for both Edinburgh and London
+      for (const city of CITIES) {
+        try {
+          console.log(`📰 Fetching archived NewsData for ${city}...`);
 
-      const requestParams = {
-        ...defaultParams,
-        q: disruptionQuery,
-        ...params
-      };
+          // Use simple city-based query
+          const cityQuery = city === 'Edinburgh' ? 'Edinburgh' : 'London';
 
-      // Temporarily return empty array due to API issues
-      console.log('NewsData archive API temporarily disabled due to 422 errors');
-      return [];
+          // Make multiple requests with different disruption keywords
+          const disruptionQueries = [
+            `${cityQuery} strike`,
+            `${cityQuery} weather`,
+            `${cityQuery} protest`,
+            `${cityQuery} flight`,
+            `${cityQuery} staff shortage`,
+            `${cityQuery} system failure`
+          ];
+
+          for (const query of disruptionQueries) {
+            try {
+              const requestParams = {
+                apikey: this.apiKey,
+                q: query,
+                language: 'en',
+                country: 'gb',
+                category: 'business,politics,environment', // Removed 'travel' as it's not a valid category
+                from_date: fromDate,
+                to_date: toDate,
+                size: 10, // Smaller size per query
+                ...params
+              };
+
+              const response = await axios.get(`${this.baseURL}/archive`, {
+                params: requestParams,
+                timeout: 30000
+              });
+
+              if (response.data && response.data.results) {
+                const articles = response.data.results;
+                console.log(`📰 Found ${articles.length} archived articles for query: ${query}`);
+
+                // Transform articles to disruptions
+                for (const article of articles) {
+                  const disruption = this.transformArticleToDisruption(article);
+                  if (disruption && disruption.city === city) {
+                    // Avoid duplicates by checking title
+                    const isDuplicate = allDisruptions.some(d => d.title === disruption.title);
+                    if (!isDuplicate) {
+                      allDisruptions.push(disruption);
+                    }
+                  }
+                }
+              }
+
+              // Small delay between queries to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 500));
+
+            } catch (queryError) {
+              console.error(`❌ Error with archived query "${query}":`, queryError.response?.data || queryError.message);
+              // Continue with next query even if one fails
+              continue;
+            }
+          }
+
+          // Small delay between city requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+          console.error(`❌ Error fetching archived NewsData for ${city}:`, error.response?.data || error.message);
+          // Continue with next city even if one fails
+          continue;
+        }
+      }
+
+      console.log(`📰 NewsData archive returned ${allDisruptions.length} total disruptions`);
+      return allDisruptions;
 
     } catch (error) {
-      console.error('Error fetching archived news from NewsData:', error);
+      console.error('Error fetching archived news from NewsData:', error.response?.data || error.message);
       return [];
     }
   }
