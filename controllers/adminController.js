@@ -1878,6 +1878,291 @@ const getRevenueAnalytics = async (startDate, endDate) => {
   }
 };
 
+// Download CSV template for bulk alert upload
+const downloadAlertTemplate = async (req, res) => {
+  try {
+    // CSV template headers
+    const headers = [
+      'title',
+      'summary',
+      'city',
+      'mainType',
+      'subType',
+      'status',
+      'startDate',
+      'endDate',
+      'source',
+      'url',
+      'originCity',
+      'sectors',
+      'recoveryExpected',
+      'confidence'
+    ];
+
+    // Helper function to escape CSV values
+    const escapeCSV = (value) => {
+      if (value === null || value === undefined) return '';
+      const stringValue = String(value);
+      // If value contains comma, quote, or newline, wrap in quotes and escape quotes
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    };
+
+    // Create CSV content with headers and example row
+    const exampleRow = [
+      'Ryanair Rome-Edinburgh pilot strike',
+      'All Ryanair flights from Rome to Edinburgh cancelled due to pilot strike. Italian guests may not arrive.',
+      'Edinburgh',
+      'strike',
+      'airline_pilot',
+      'pending',
+      '2025-12-25',
+      '2025-12-26',
+      'Reuters',
+      'https://www.reuters.com/example',
+      'Edinburgh',
+      'Airlines,Transportation,Travel',
+      '2-7 days',
+      '0.7'
+    ];
+
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      exampleRow.map(escapeCSV).join(',')
+    ].join('\n');
+
+    // Set response headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="alerts_template.csv"');
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error('Error generating template:', error);
+    res.status(500).json({ message: 'Failed to generate template', error: error.message });
+  }
+};
+
+// Upload and process bulk alerts from CSV
+const uploadBulkAlerts = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const { buffer, originalname } = req.file;
+    const csv = require('csv-parser');
+    const { Readable } = require('stream');
+
+    const alerts = [];
+    const errors = [];
+    let processedCount = 0;
+
+    // Parse CSV
+    const stream = Readable.from(buffer.toString());
+
+    await new Promise((resolve, reject) => {
+      stream
+        .pipe(csv())
+        .on('data', (row) => {
+          processedCount++;
+          try {
+            // Validate required fields
+            if (!row.title || !row.summary || !row.city) {
+              errors.push({
+                row: processedCount,
+                message: 'Missing required fields: title, summary, or city'
+              });
+              return;
+            }
+
+            // Validate city
+            if (!['Edinburgh', 'London'].includes(row.city)) {
+              errors.push({
+                row: processedCount,
+                field: 'city',
+                message: 'City must be Edinburgh or London'
+              });
+              return;
+            }
+
+            // Validate status
+            const validStatuses = ['pending', 'approved', 'expired'];
+            const status = row.status || 'pending';
+            if (!validStatuses.includes(status)) {
+              errors.push({
+                row: processedCount,
+                field: 'status',
+                message: `Status must be one of: ${validStatuses.join(', ')}`
+              });
+              return;
+            }
+
+            // Parse dates
+            let startDate, endDate;
+            if (row.startDate) {
+              startDate = new Date(row.startDate);
+              if (isNaN(startDate.getTime())) {
+                errors.push({
+                  row: processedCount,
+                  field: 'startDate',
+                  message: 'Invalid start date format. Use YYYY-MM-DD'
+                });
+                return;
+              }
+            }
+
+            if (row.endDate) {
+              endDate = new Date(row.endDate);
+              if (isNaN(endDate.getTime())) {
+                errors.push({
+                  row: processedCount,
+                  field: 'endDate',
+                  message: 'Invalid end date format. Use YYYY-MM-DD'
+                });
+                return;
+              }
+            }
+
+            // Validate date range
+            if (startDate && endDate && endDate < startDate) {
+              errors.push({
+                row: processedCount,
+                message: 'End date must be after start date'
+              });
+              return;
+            }
+
+            // Parse confidence (0-1)
+            let confidence = 0;
+            if (row.confidence) {
+              confidence = parseFloat(row.confidence);
+              if (isNaN(confidence) || confidence < 0 || confidence > 1) {
+                errors.push({
+                  row: processedCount,
+                  field: 'confidence',
+                  message: 'Confidence must be a number between 0 and 1'
+                });
+                return;
+              }
+            }
+
+            // Parse sectors (comma-separated)
+            let sectors = [];
+            if (row.sectors) {
+              sectors = row.sectors.split(',').map(s => s.trim()).filter(s => s);
+            }
+
+            // Build alert data
+            const alertData = {
+              title: row.title.trim(),
+              summary: row.summary.trim(),
+              city: row.city.trim(),
+              mainType: row.mainType?.trim() || 'other',
+              subType: row.subType?.trim() || 'general disruption',
+              status: status,
+              startDate: startDate || null,
+              endDate: endDate || null,
+              source: row.source?.trim() || 'Manual Upload',
+              url: row.url?.trim() || null,
+              originCity: row.originCity?.trim() || row.city.trim(),
+              sectors: sectors.length > 0 ? sectors : ['Transportation', 'Travel'],
+              recoveryExpected: row.recoveryExpected?.trim() || 'Variable',
+              confidence: confidence
+            };
+
+            // Add confidence source if confidence is provided
+            if (confidence > 0) {
+              alertData.confidenceSources = [{
+                source: alertData.source,
+                type: 'other_news',
+                confidence: confidence,
+                url: alertData.url,
+                title: alertData.title
+              }];
+            }
+
+            alerts.push(alertData);
+
+          } catch (error) {
+            errors.push({
+              row: processedCount,
+              message: `Error processing row: ${error.message}`
+            });
+          }
+        })
+        .on('end', () => {
+          resolve();
+        })
+        .on('error', (error) => {
+          reject(error);
+        });
+    });
+
+    // If there are too many errors, don't save anything
+    if (errors.length > Math.min(alerts.length * 0.1, 10)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Too many errors in CSV file. Please fix the errors and try again.',
+        errors: errors.slice(0, 20),
+        totalErrors: errors.length
+      });
+    }
+
+    // Save alerts to database
+    if (alerts.length > 0) {
+      const savedAlerts = await Alert.insertMany(alerts, { ordered: false });
+
+      await Logger.log(req, 'alerts_bulk_upload', {
+        fileName: originalname,
+        totalRows: processedCount,
+        successfulAlerts: savedAlerts.length,
+        errors: errors.length
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Successfully uploaded ${savedAlerts.length} alerts`,
+        data: {
+          totalProcessed: processedCount,
+          successful: savedAlerts.length,
+          errors: errors.length,
+          alerts: savedAlerts
+        },
+        errors: errors.slice(0, 10)
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'No valid alerts found in CSV file',
+      data: {
+        totalProcessed: processedCount,
+        successful: 0,
+        errors: errors.length
+      },
+      errors
+    });
+
+  } catch (error) {
+    console.error('Error uploading bulk alerts:', error);
+
+    await Logger.log(req, 'alerts_bulk_upload_error', {
+      error: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process CSV file',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAlerts,
   updateAlertStatus,
@@ -1904,5 +2189,7 @@ module.exports = {
   getUserStats,
   getAnalytics,
   sendAlert,
-  getAlertStats
+  getAlertStats,
+  downloadAlertTemplate,
+  uploadBulkAlerts
 }; 

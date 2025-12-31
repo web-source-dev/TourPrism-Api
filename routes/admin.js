@@ -1,4 +1,5 @@
 const express = require("express");
+const multer = require('multer');
 const { authorizeRoles } = require("../middleware/auth.js");
 const {
   getHotelSavingsStats,
@@ -26,14 +27,36 @@ const {
   triggerAlertGeneration,
   getAnalytics,
   sendAlert,
-  getAlertStats
+  getAlertStats,
+  downloadAlertTemplate,
+  uploadBulkAlerts
 } = require('../controllers/adminController.js');
 
 const router = express.Router();
 
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Check if file is CSV
+    if (file.mimetype === 'text/csv' ||
+        file.mimetype === 'application/csv' ||
+        file.originalname.toLowerCase().endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  }
+});
+
 // Alert management routes (admin only)
 router.get("/alerts", authorizeRoles(['admin']), getAlerts);
 router.post("/alerts", authorizeRoles(['admin']), createAlert);
+router.get("/alerts/template", authorizeRoles(['admin']), downloadAlertTemplate);
+router.post("/alerts/bulk-upload", authorizeRoles(['admin']), upload.single('alertsFile'), uploadBulkAlerts);
 router.get("/alerts/:alertId", authorizeRoles(['admin']), getAlertDetails);
 router.put("/alerts/:alertId", authorizeRoles(['admin']), updateAlert);
 router.patch("/alerts/:alertId/status", authorizeRoles(['admin']), updateAlertStatus);
