@@ -421,6 +421,139 @@ const triggerAlertGeneration = async (req, res) => {
   }
 };
 
+// Send alert to user's actual guests (Pro users only)
+const sendAlertToGuests = async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const userId = req.userId;
+
+    // Get alert details
+    const alert = await Alert.findById(alertId);
+    if (!alert) {
+      return res.status(404).json({ message: "Alert not found" });
+    }
+
+    // Get user profile for hotel information
+    const User = require('../models/User.js');
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get user's bookings to find guest emails
+    const Booking = require('../models/Booking.js');
+    const bookings = await Booking.find({
+      hotelId: userId,
+      guestEmail: { $exists: true, $ne: null, $ne: '' }
+    });
+
+    if (bookings.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No bookings with guest email addresses found"
+      });
+    }
+
+    // Import email service
+    const sendAlertNotificationToGuest = require('../utils/emailTemplates/alertNotification-guests.js');
+
+    // Prepare email content using the disruption report logic
+    const hotelName = user.company?.name || 'Your Hotel';
+    const contactName = user.company?.contactName || user.email;
+
+    // Calculate disruption risk using the utility
+    const disruptionCalculations = require('../utils/disruptionCalculations.js');
+    const riskData = disruptionCalculations.calculateDisruptionRisk(alert, user);
+    const when = disruptionCalculations.formatWhenText(alert.startDate);
+
+    // Create personalized message for guests
+    const message = `We know the ${alert.mainType?.replace('_', ' ') || 'disruption'} might mess up your plans ${when === 'tomorrow' ? 'tomorrow' : when}.
+
+Your booking is safe with us — and to make it easier we offer:
+
+${user.company?.incentives?.length > 0 ?
+  user.company.incentives.slice(0, 2).map(incentive => `→ ${incentive}`).join('\n') :
+  '→ Free parking all day\n→ Late check-out until 1 PM'
+}
+
+Just show this at the reception.
+
+See you soon!
+${hotelName} Team`;
+
+    // Send emails to all guests
+    let sentCount = 0;
+    let failedCount = 0;
+    const failedEmails = [];
+
+    for (const booking of bookings) {
+      try {
+        const success = await sendAlertNotificationToGuest(
+          booking.guestEmail,
+          booking.guestFirstName,
+          riskData.header,
+          message,
+          {
+            ...alert.toObject(),
+            summary: alert.summary,
+            city: alert.city,
+            startDate: alert.startDate,
+            endDate: alert.endDate,
+            status: alert.status,
+            createdAt: alert.createdAt
+          }
+        );
+
+        if (success) {
+          sentCount++;
+        } else {
+          failedCount++;
+          failedEmails.push(booking.guestEmail);
+        }
+      } catch (error) {
+        console.error(`Failed to send email to ${booking.guestEmail}:`, error);
+        failedCount++;
+        failedEmails.push(booking.guestEmail);
+      }
+    }
+
+    // Log the action
+    await Logger.log(req, 'alert_sent_to_guests', {
+      alertId: alert._id,
+      alertTitle: alert.title,
+      totalBookings: bookings.length,
+      emailsSent: sentCount,
+      emailsFailed: failedCount,
+      failedEmails: failedEmails.slice(0, 10) // Log first 10 failed emails
+    });
+
+    res.json({
+      success: true,
+      message: `Alert sent to ${sentCount} guests${failedCount > 0 ? ` (${failedCount} failed)` : ''}`,
+      data: {
+        totalGuests: bookings.length,
+        sentTo: sentCount,
+        failed: failedCount,
+        failedEmails: failedEmails.slice(0, 5) // Return first 5 failed emails in response
+      }
+    });
+
+  } catch (error) {
+    console.error('Error sending alert to guests:', error);
+
+    await Logger.log(req, 'alert_send_to_guests_error', {
+      alertId: req.params.alertId,
+      error: error.message
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send alert to guests',
+      error: error.message
+    });
+  }
+};
+
 // Get all subscribers (admin only)
 const getSubscribers = async (req, res) => {
   try {
@@ -1821,5 +1954,6 @@ module.exports = {
   getUserStats,
   getAnalytics,
   downloadAlertTemplate,
-  uploadBulkAlerts
+  uploadBulkAlerts,
+  sendAlertToGuests
 }; 

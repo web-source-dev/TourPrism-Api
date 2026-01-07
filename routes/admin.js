@@ -26,7 +26,8 @@ const {
   triggerAlertGeneration,
   getAnalytics,
   downloadAlertTemplate,
-  uploadBulkAlerts
+  uploadBulkAlerts,
+  sendAlertToGuests
 } = require('../controllers/adminController.js');
 
 const router = express.Router();
@@ -59,6 +60,7 @@ router.put("/alerts/:alertId", authorizeRoles(['admin']), updateAlert);
 router.patch("/alerts/:alertId/status", authorizeRoles(['admin']), updateAlertStatus);
 router.patch("/alerts/:alertId/process", authorizeRoles(['admin']), processAlert);
 router.post("/alerts/trigger-generation", authorizeRoles(['admin']), triggerAlertGeneration);
+router.post("/alerts/:alertId/send-to-guests", authorizeRoles(['user', 'admin']), sendAlertToGuests);
 router.post("/alerts/:alertId/duplicate", authorizeRoles(['admin']), duplicateAlert);
 router.post("/alerts/:alertId/archive", authorizeRoles(['admin']), archiveAlert);
 router.delete("/alerts/:alertId", authorizeRoles(['admin']), deleteAlert);

@@ -308,7 +308,7 @@ const getBookingStats = async (req, res) => {
     const stats = await Booking.aggregate([
       {
         $match: {
-          hotelId: hotelId,
+          hotelId: new mongoose.Types.ObjectId(hotelId),
           ...dateFilter
         }
       },
