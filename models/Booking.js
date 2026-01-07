@@ -24,7 +24,6 @@ const bookingSchema = new mongoose.Schema({
   },
   guestEmail: {
     type: String,
-    required: true,
     trim: true,
     lowercase: true
   },

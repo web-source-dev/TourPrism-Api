@@ -30,38 +30,63 @@ const uploadBookings = async (req, res) => {
     await new Promise((resolve, reject) => {
       stream
         .pipe(csv({
-          mapHeaders: ({ header }) => {
-            // Normalize column headers
+          mapHeaders: ({ header, index }) => {
+            // Handle CSV by position since headers might vary
+            // Expected format: Booking ID, Guest First Name, Guest Email, Room Type, Booking Date, Check-in Date, Check-out Date, Total Nights, Booking Rate, Total Amount, Booking Source
+            const positionMappings = {
+              0: 'bookingId',      // Booking ID
+              1: 'guestFirstName', // Guest First Name
+              2: 'guestEmail',     // Guest Email (optional)
+              3: 'roomType',       // Room Type
+              4: 'bookingDate',    // Booking Date (optional, will be ignored)
+              5: 'checkInDate',    // Check-in Date
+              6: 'checkOutDate',   // Check-out Date (optional, will be ignored)
+              7: 'nights',         // Total Nights
+              8: 'bookingRate',    // Booking Rate
+              9: 'totalAmount',    // Total Amount (optional, will be ignored)
+              10: 'bookingSource'  // Booking Source
+            };
+
+            // Try header-based mapping first
             const normalized = header.toLowerCase().trim();
-            const mappings = {
+            const headerMappings = {
               'booking id': 'bookingId',
               'booking_id': 'bookingId',
               'guest first name': 'guestFirstName',
               'guest_first_name': 'guestFirstName',
               'guest email': 'guestEmail',
               'guest_email': 'guestEmail',
+              'room type': 'roomType',
+              'room_type': 'roomType',
+              'booking date': 'bookingDate',
+              'booking_date': 'bookingDate',
               'check-in date': 'checkInDate',
               'check_in_date': 'checkInDate',
               'checkin date': 'checkInDate',
               'checkin_date': 'checkInDate',
-              'nights': 'nights',
-              'booking rate (£)': 'bookingRate',
+              'check-out date': 'checkOutDate',
+              'check_out_date': 'checkOutDate',
+              'checkout date': 'checkOutDate',
+              'checkout_date': 'checkOutDate',
+              'total nights': 'nights',
+              'total_nights': 'nights',
               'booking rate': 'bookingRate',
               'booking_rate': 'bookingRate',
-              'room type': 'roomType',
-              'room_type': 'roomType',
+              'total amount': 'totalAmount',
+              'total_amount': 'totalAmount',
               'booking source': 'bookingSource',
               'booking_source': 'bookingSource'
             };
-            return mappings[normalized] || normalized;
+
+            return headerMappings[normalized] || positionMappings[index] || normalized;
           }
         }))
         .on('data', (row) => {
           processedCount++;
 
           try {
-            // Validate required fields (Room Type and Booking Source are optional)
-            const requiredFields = ['bookingId', 'guestFirstName', 'guestEmail', 'checkInDate', 'nights', 'bookingRate'];
+            // Validate required fields (Email, Room Type and Booking Source are optional)
+            const requiredFields = ['bookingId', 'guestFirstName', 'checkInDate', 'nights', 'bookingRate'];
 
             for (const field of requiredFields) {
               if (!row[field] || row[field].toString().trim() === '') {
@@ -79,7 +104,7 @@ const uploadBookings = async (req, res) => {
               hotelId,
               bookingId: row.bookingId.toString().trim(),
               guestFirstName: row.guestFirstName.toString().trim(),
-              guestEmail: row.guestEmail.toString().trim().toLowerCase(),
+              guestEmail: row.guestEmail && row.guestEmail.toString().trim() ? row.guestEmail.toString().trim().toLowerCase() : undefined,
               checkInDate: new Date(row.checkInDate),
               nights: parseInt(row.nights),
               bookingRate: parseFloat(row.bookingRate.toString().replace(/[£$,]/g, '')),
