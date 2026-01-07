@@ -2,7 +2,6 @@ const express = require("express");
 const multer = require('multer');
 const { authorizeRoles } = require("../middleware/auth.js");
 const {
-  getHotelSavingsStats,
   getCityRiskStats,
   getAlerts,
   updateAlertStatus,
@@ -26,8 +25,6 @@ const {
   processAlert,
   triggerAlertGeneration,
   getAnalytics,
-  sendAlert,
-  getAlertStats,
   downloadAlertTemplate,
   uploadBulkAlerts
 } = require('../controllers/adminController.js');
@@ -64,12 +61,7 @@ router.patch("/alerts/:alertId/process", authorizeRoles(['admin']), processAlert
 router.post("/alerts/trigger-generation", authorizeRoles(['admin']), triggerAlertGeneration);
 router.post("/alerts/:alertId/duplicate", authorizeRoles(['admin']), duplicateAlert);
 router.post("/alerts/:alertId/archive", authorizeRoles(['admin']), archiveAlert);
-router.post("/alerts/:alertId/send", authorizeRoles(['admin']), sendAlert);
 router.delete("/alerts/:alertId", authorizeRoles(['admin']), deleteAlert);
-router.get("/alerts/stats", authorizeRoles(['admin']), getAlertStats);
-
-// Get hotel savings stats (for feed page stats card)
-router.get("/dashboard/savings/:hotelId", authorizeRoles(['user', 'admin', 'manager', 'viewer' ]), getHotelSavingsStats);
 
 // Get city risk stats (for non-authenticated users)
 router.get("/dashboard/city-risk/:city", getCityRiskStats);

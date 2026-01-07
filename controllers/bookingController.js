@@ -19,8 +19,6 @@ const uploadBookings = async (req, res) => {
     const { buffer, originalname } = req.file;
     const hotelId = req.userId;
 
-    // Generate import batch ID
-    const importBatch = `import_${Date.now()}_${hotelId}`;
 
     const bookings = [];
     const errors = [];
@@ -62,8 +60,8 @@ const uploadBookings = async (req, res) => {
           processedCount++;
 
           try {
-            // Validate required fields
-            const requiredFields = ['bookingId', 'guestFirstName', 'guestEmail', 'checkInDate', 'nights', 'bookingRate', 'roomType', 'bookingSource'];
+            // Validate required fields (Room Type and Booking Source are optional)
+            const requiredFields = ['bookingId', 'guestFirstName', 'guestEmail', 'checkInDate', 'nights', 'bookingRate'];
 
             for (const field of requiredFields) {
               if (!row[field] || row[field].toString().trim() === '') {
@@ -85,10 +83,8 @@ const uploadBookings = async (req, res) => {
               checkInDate: new Date(row.checkInDate),
               nights: parseInt(row.nights),
               bookingRate: parseFloat(row.bookingRate.toString().replace(/[£$,]/g, '')),
-              roomType: row.roomType.toString().trim(),
-              bookingSource: row.bookingSource.toString().trim(),
-              importBatch,
-              importDate: new Date()
+              roomType: row.roomType ? row.roomType.toString().trim() : 'Standard',
+              bookingSource: row.bookingSource ? row.bookingSource.toString().trim() : 'Direct'
             };
 
             // Validate data types
@@ -152,7 +148,6 @@ const uploadBookings = async (req, res) => {
 
       await Logger.log(req, 'bookings_upload', {
         fileName: originalname,
-        importBatch,
         totalRows: processedCount,
         successfulBookings: savedBookings.length,
         errors: errors.length
@@ -164,8 +159,7 @@ const uploadBookings = async (req, res) => {
         data: {
           totalProcessed: processedCount,
           successful: savedBookings.length,
-          errors: errors.length,
-          importBatch
+          errors: errors.length
         },
         errors: errors.slice(0, 10) // Show first 10 errors for reference
       });
@@ -206,7 +200,6 @@ const getBookings = async (req, res) => {
     const {
       page = 1,
       limit = 50,
-      status = 'active',
       startDate,
       endDate,
       sortBy = 'checkInDate',
@@ -214,11 +207,6 @@ const getBookings = async (req, res) => {
     } = req.query;
 
     const query = { hotelId };
-
-    // Add status filter
-    if (status && status !== 'all') {
-      query.status = status;
-    }
 
     // Add date range filter
     if (startDate || endDate) {
@@ -238,7 +226,6 @@ const getBookings = async (req, res) => {
       .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit))
-      .populate('associatedAlerts.alertId', 'title mainType subType')
       .lean();
 
     const total = await Booking.countDocuments(query);
@@ -297,7 +284,6 @@ const getBookingStats = async (req, res) => {
       {
         $match: {
           hotelId: hotelId,
-          status: 'active',
           ...dateFilter
         }
       },
@@ -315,23 +301,6 @@ const getBookingStats = async (req, res) => {
           roomTypes: {
             $addToSet: '$roomType'
           }
-        }
-      }
-    ]);
-
-    const riskStats = await Booking.aggregate([
-      {
-        $match: {
-          hotelId: hotelId,
-          status: 'active',
-          ...dateFilter
-        }
-      },
-      {
-        $group: {
-          _id: '$riskLevel',
-          count: { $sum: 1 },
-          revenue: { $sum: { $multiply: ['$bookingRate', '$nights'] } }
         }
       }
     ]);
@@ -354,8 +323,7 @@ const getBookingStats = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        overview: result,
-        riskBreakdown: riskStats
+        overview: result
       }
     });
 
@@ -380,12 +348,13 @@ const getBookingStats = async (req, res) => {
 const updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { status, riskLevel } = req.body;
+    const updateData = req.body;
     const hotelId = req.userId;
 
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (riskLevel) updateData.riskLevel = riskLevel;
+    // Remove fields that shouldn't be updated
+    delete updateData._id;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
 
     const booking = await Booking.findOneAndUpdate(
       { _id: bookingId, hotelId },
@@ -478,12 +447,18 @@ const deleteBooking = async (req, res) => {
 const getBookingsAtRisk = async (req, res) => {
   try {
     const hotelId = req.userId;
-    const { alertId, startDate, endDate } = req.query;
+    const { startDate, endDate } = req.query;
 
-    const bookings = await Booking.getBookingsAtRisk(hotelId, startDate, endDate, alertId);
+    const query = { hotelId };
+    if (startDate || endDate) {
+      query.checkInDate = {};
+      if (startDate) query.checkInDate.$gte = new Date(startDate);
+      if (endDate) query.checkInDate.$lte = new Date(endDate);
+    }
+
+    const bookings = await Booking.find(query).sort({ checkInDate: 1 });
 
     await Logger.log(req, 'bookings_at_risk', {
-      alertId,
       startDate,
       endDate,
       count: bookings.length

@@ -1,8 +1,6 @@
 // Backend configuration and service exports
 const connectDB = require('./db.js');
-const grokService = require('./grok.js');
 const newsDataService = require('./newsdata.js');
-const impactCalculator = require('./impactCalculator.js');
 const alertProcessor = require('./alertProcessor.js');
 const alertScheduler = require('./scheduler.js');
 
@@ -33,7 +31,6 @@ const initializeServices = async () => {
     validateEnvironment();
 
     // Initialize services that need setup
-    await grokService.initialize();
 
     // Initialize scheduler
     alertScheduler.initialize();
@@ -48,9 +45,7 @@ const initializeServices = async () => {
 
 module.exports = {
   connectDB,
-  grokService,
   newsDataService,
-  impactCalculator,
   alertProcessor,
   alertScheduler,
   validateEnvironment,

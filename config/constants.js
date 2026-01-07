@@ -74,12 +74,6 @@ const CITIES = [
   'London'
 ];
 
-// Hotel sizes for impact calculations - according to CALCULATIONS.pdf
-const HOTEL_SIZES = [
-  'micro',   // <15 rooms
-  'small',   // 16-50 rooms
-  'medium'   // 51-150 rooms
-];
 
 // Confidence scoring system - updated according to SCORING & PUBLISHING.pdf
 const CONFIDENCE_SCORING = {
@@ -105,52 +99,7 @@ const CONFIDENCE_SCORING = {
   }
 };
 
-// Base recovery rates by disruption type - updated according to CALCULATIONS.pdf
-const BASE_RECOVERY_RATES = {
-  strike: 0.70,      // 70% base recovery
-  weather: 0.60,     // 60% base recovery
-  protest: 0.65,     // 65% base recovery
-  flight: 0.55,      // 55% base recovery
-  staff: 0.50,       // 50% base recovery
-  supply: 0.45,      // 45% base recovery
-  system: 0.40,      // 40% base recovery
-  policy: 0.35,      // 35% base recovery
-  economy: 0.30,     // 30% base recovery
-  other: 0.55        // 55% base recovery
-};
 
-// Disruption percentages by type - according to CALCULATIONS.pdf
-const DISRUPTION_PERCENTAGES = {
-  strike: 0.25,      // 25% disruption
-  weather: 0.25,     // 25% disruption
-  protest: 0.25,     // 25% disruption
-  flight: 0.25,      // 25% disruption
-  staff: 0.25,       // 25% disruption
-  supply: 0.25,      // 25% disruption
-  system: 0.25,      // 25% disruption
-  policy: 0.25,      // 25% disruption
-  economy: 0.25,     // 25% disruption
-  other: 0.25        // 25% disruption
-};
-
-// Hotel size configurations - according to CALCULATIONS.pdf
-const HOTEL_CONFIGS = {
-  micro: {
-    rooms: 8,
-    occupancy: 0.60,
-    size: 'micro'
-  },
-  small: {
-    rooms: 35,
-    occupancy: 0.65,
-    size: 'small'
-  },
-  medium: {
-    rooms: 80,
-    occupancy: 0.70,
-    size: 'medium'
-  }
-};
 
 // NewsData API configuration - according to FETCHING & SUMMARIZING.pdf
 const NEWSDATA_CONFIG = {
@@ -178,79 +127,8 @@ const NEWSDATA_CONFIG = {
   ]
 };
 
-// Grok API configuration - according to FETCHING & SUMMARIZING.pdf
-const GROK_CONFIG = {
-  baseURL: 'https://api.x.ai/v1',
-  apiKey: process.env.GROK_API_KEY,
-  model: 'grok-beta',
-  cities: ['Edinburgh', 'London'],
-  schedule: {
-    full: 'monday',    // Monday: Grok + NewsData
-    partial: 'thursday' // Thursday: NewsData only
-  }
-};
 
 // LLM Prompts - according to FETCHING & SUMMARIZING.pdf and SCORING & PUBLISHING.pdf
-const LLM_PROMPTS = {
-  grokDisruptionSearch: `You are a hotel disruption scout for Edinburgh and London.
-
-Find ANYTHING that could stop guests arriving or checking in next 30 days.
-
-Use examples as starters, but think of more.
-
-Examples (expand from these):
-- Strike (rail, airline pilot, ATC, ferry, ground staff, baggage handlers)
-- Weather (snow, flood, storm, fog, ice, hurricane, heatwave, cold snap)
-- Protest (march, blockade, sit-in, demonstration, rally, riot, civil unrest)
-- Flight issues (delay, cancellation, grounding, overbooking, airspace restriction, runway closure)
-- Staff shortage (airport check-in, hotel cleaning, pilot shortage, crew absence)
-- Supply chain (jet fuel shortage, catering delay, laundry crisis, toiletries shortage)
-- System failure (IT crash, border control outage, booking system down, e-gates failure, ATM system failure)
-- Policy (travel ban, visa change, quarantine rule, advisory, embargo)
-- Economy (pound surge, recession, tourist drop, exchange rate crash, FX volatility, inflation hit)
-- Other (road closure, festival chaos, construction delay, mechanical failure, natural disaster, volcano, earthquake, wildfire)
-
-Rules:
-- Must affect Edinburgh or London arrivals
-- Global events OK if causal link (e.g., Ryanair Rome strike → Rome-Edinburgh flights)
-- Use specific sub-event in title (e.g., "Ryanair Rome-Edinburgh pilot strike")
-- Output EXACT JSON
-
-[{
-  "city": "Edinburgh",
-  "main_type": "strike",
-  "sub_type": "airline pilot",
-  "title": "Ryanair Rome-Edinburgh pilot strike",
-  "start_date": "2025-11-15",
-  "end_date": "2025-11-16",
-  "source": "Reuters",
-  "url": "https://...",
-  "summary": "All Ryanair flights from Rome to Edinburgh cancelled. Italian guests may not arrive."
-}]`,
-
-  toneCheck: `Say ONE word: Early, Developing, or Confirmed.
-
-Event: {title}
-
-Sources: {sources}`,
-
-  headerGeneration: `Write ONE line:
-
-"[Event] could empty X rooms [when] impacting £Y"
-
-Event: {type}
-Rooms: {rooms}
-Value: £{value}
-When: {when}
-
-Rules:
-- Keep it short and real
-- No symbols, no jargon
-- Never repeat the same phrase
-- Use natural words (e.g. "this weekend", "Friday", "overnight")
-- X = number of rooms at risk
-- Y = total £ value at risk`
-};
 
 module.exports = {
   ALERT_MAIN_TYPES,
@@ -261,12 +139,6 @@ module.exports = {
   CONFIDENCE_SOURCE_TYPES,
   CONFIDENCE_THRESHOLDS,
   CITIES,
-  HOTEL_SIZES,
   CONFIDENCE_SCORING,
-  BASE_RECOVERY_RATES,
-  DISRUPTION_PERCENTAGES,
-  HOTEL_CONFIGS,
-  NEWSDATA_CONFIG,
-  GROK_CONFIG,
-  LLM_PROMPTS
+  NEWSDATA_CONFIG
 };

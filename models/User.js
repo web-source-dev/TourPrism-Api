@@ -44,8 +44,6 @@ const userSchema = new mongoose.Schema(
     
       avgRoomRate: {
         type: Number,
-        min: 50,
-        max: 300,
         default: null
       },
     
@@ -66,21 +64,7 @@ const userSchema = new mongoose.Schema(
         type: [String],
         default: []
       }
-    },
-    weeklyForecastSubscribed: {
-      type: Boolean,
-      default: false
-    },
-    weeklyForecastSubscribedAt: {
-      type: Date
-    },
-    lastWeeklyForecastReceived: {
-      type: Date
-    },
-    followedAlerts: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Alert",
-    }]
+    }
   },
   { timestamps: true }
 );

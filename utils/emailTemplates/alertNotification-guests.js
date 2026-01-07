@@ -8,18 +8,18 @@ const sendAlertNotificationToGuest = async (email, name, alertTitle, message, al
     const alert = typeof alertDetails === 'object' ? alertDetails : { description: alertDetails };
     
     // Get the correct description
-    const description = alert.description || 'No description available';
+    const description = alert.summary || 'No description available';
     
     // Format dates if available
-    const startDate = alert.expectedStart ? new Date(alert.expectedStart).toLocaleString('en-US', {
+    const startDate = alert.startDate ? new Date(alert.startDate).toLocaleString('en-US', {
       day: '2-digit',
       month: 'short',
       hour: 'numeric',
       minute: 'numeric',
       hour12: true
     }) : 'Not specified';
-    
-    const endDate = alert.expectedEnd ? new Date(alert.expectedEnd).toLocaleString('en-US', {
+
+    const endDate = alert.endDate ? new Date(alert.endDate).toLocaleString('en-US', {
       day: '2-digit',
       month: 'short',
       hour: 'numeric',
@@ -82,10 +82,6 @@ const sendAlertNotificationToGuest = async (email, name, alertTitle, message, al
                 <tr>
                   <td style="padding: 8px 0; font-weight: bold;">End Date</td>
                   <td style="padding: 8px 0; color: #666;">${endDate}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold;">Impact Level</td>
-                  <td style="padding: 8px 0; color: #666;">${alert.impact || 'Not specified'}</td>
                 </tr>
               </table>
               

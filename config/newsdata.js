@@ -222,12 +222,7 @@ class NewsDataService {
         end_date: dates.endDate,
         source: article.source_id || article.source_name || 'NewsData',
         url: article.link,
-        summary: article.description || article.title,
-        sourceCredibility: this.getSourceCredibility(article.source_id),
-        pubDate: article.pubDate,
-        image_url: article.image_url,
-        keywords: article.keywords || [],
-        category: article.category || []
+        summary: article.description || article.title
       };
 
     } catch (error) {

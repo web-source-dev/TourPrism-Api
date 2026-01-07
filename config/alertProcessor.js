@@ -1,19 +1,11 @@
 const Alert = require('../models/Alert.js');
-const grokService = require('./grok.js');
-const impactCalculator = require('./impactCalculator.js');
 const {
   CONFIDENCE_SCORING,
-  ALERT_STATUSES,
-  ALERT_TONES,
-  ALERT_SECTORS,
-  ALERT_MAIN_TYPES,
-  ALERT_SUB_TYPES,
   CONFIDENCE_THRESHOLDS
 } = require('./constants.js');
 
 class AlertProcessor {
   constructor() {
-    this.sourceScoring = CONFIDENCE_SCORING;
     this.confidenceThreshold = CONFIDENCE_THRESHOLDS.APPROVE;
   }
 
@@ -181,25 +173,9 @@ class AlertProcessor {
         url: representative.url,
         summary: representative.summary,
         confidence: confidenceData.score,
-        confidenceSources: cluster.map(d => ({
-          source: d.source,
-          type: d.sourceCredibility || 'other_news',
-          confidence: this.getSourceConfidence(d.sourceCredibility || 'other_news'),
-          url: d.url,
-          title: d.title || representative.title,
-          publishedAt: d.pubDate
-        })),
-        status: confidenceData.score >= this.confidenceThreshold ? 'approved' : 'pending',
-        sectors: this.generateSectors(representative.mainType),
-        recoveryExpected: this.generateRecoveryExpected(representative.mainType),
-        originCity: representative.city
+        status: confidenceData.score >= this.confidenceThreshold ? 'approved' : 'pending'
       };
 
-      // Generate LLM content if confidence is high enough
-      if (confidenceData.score >= this.confidenceThreshold) {
-        const llmData = await this.generateLLMContent(alertData);
-        Object.assign(alertData, llmData);
-      }
 
       const alert = new Alert(alertData);
       await alert.save();
@@ -218,39 +194,19 @@ class AlertProcessor {
    */
   async updateAlert(existingAlert, newCluster) {
     try {
-      const allSources = [...existingAlert.alertSources, ...newCluster.map(d => ({
-        source: d.source,
-        url: d.url,
-        credibility: d.sourceCredibility || 'other_news',
-        pubDate: d.pubDate
-      }))];
-
-      // Remove duplicates
-      const uniqueSources = this.deduplicateSources(allSources);
-
-      // Recalculate confidence
-      const confidenceData = this.calculateConfidenceFromSources(uniqueSources);
+      // Recalculate confidence from new cluster
+      const confidenceData = this.calculateConfidence(newCluster);
 
       // Check if confidence changed significantly
       const confidenceChanged = Math.abs(confidenceData.score - existingAlert.confidence) > 0.1;
 
       const updateData = {
-        confidence: confidenceData.score,
-        confidenceSources: uniqueSources
+        confidence: confidenceData.score
       };
 
       // Update status based on confidence
       if (confidenceData.score >= this.confidenceThreshold && existingAlert.status === 'pending') {
         updateData.status = 'approved';
-
-        // Generate LLM content for newly activated alerts
-        if (!existingAlert.tone || confidenceChanged) {
-          const llmData = await this.generateLLMContent({
-            ...existingAlert.toObject(),
-            ...updateData
-          });
-          Object.assign(updateData, llmData);
-        }
       }
 
       await Alert.findByIdAndUpdate(existingAlert._id, updateData);
@@ -265,37 +221,49 @@ class AlertProcessor {
   }
 
   /**
-   * Calculate confidence score from disruption cluster
+   * Calculate confidence score from disruption cluster using progressive scoring
    */
   calculateConfidence(cluster) {
     const sources = cluster.map(d => d.sourceCredibility || 'other_news');
-    return this.calculateConfidenceFromSources(sources.map(cred => ({ credibility: cred })));
-  }
 
-  /**
-   * Calculate confidence score from sources array
-   */
-  calculateConfidenceFromSources(sources) {
+    // Group sources by credibility type
     const sourceGroups = {};
-
-    // Group sources by credibility
     sources.forEach(source => {
-      const cred = source.credibility || 'other_news';
-      sourceGroups[cred] = (sourceGroups[cred] || 0) + 1;
+      sourceGroups[source] = (sourceGroups[source] || 0) + 1;
     });
 
     let totalScore = 0;
-    let totalSources = 0;
+    let totalSources = sources.length;
 
-    // Calculate weighted score
+    // Apply progressive scoring based on source type and count
     for (const [credibility, count] of Object.entries(sourceGroups)) {
-      const scoring = this.sourceScoring[credibility];
-      if (scoring) {
-        const scoreKey = count >= 3 ? '2+' : count.toString();
-        const score = scoring[scoreKey] || scoring['2+'];
-        totalScore += score * count;
-        totalSources += count;
+      let score = 0;
+
+      switch (credibility) {
+        case 'official': // BBC, MET, Gov.uk
+          if (count >= 2) score = 1.0;
+          else if (count === 2) score = 0.9;
+          else score = 0.8;
+          break;
+        case 'major_news': // Sky, Reuters, Guardian
+          if (count >= 3) score = 0.9;
+          else if (count === 2) score = 0.8;
+          else score = 0.7;
+          break;
+        case 'other_news': // Local, Al Jazeera, blogs
+          if (count >= 3) score = 0.7;
+          else if (count === 2) score = 0.6;
+          else score = 0.5;
+          break;
+        case 'social': // X, forums
+          if (count >= 3) score = 0.4;
+          else score = 0.3; // Same for 1 or 2 sources
+          break;
+        default:
+          score = 0.5; // Default for unknown source types
       }
+
+      totalScore += score * count;
     }
 
     const averageScore = totalSources > 0 ? totalScore / totalSources : 0;
@@ -307,196 +275,9 @@ class AlertProcessor {
     };
   }
 
-  /**
-   * Remove duplicate sources
-   */
-  deduplicateSources(sources) {
-    const seen = new Set();
-    return sources.filter(source => {
-      const key = `${source.source}-${source.url}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  /**
-   * Calculate alert severity based on disruption type
-   */
-  calculateSeverity(mainType) {
-    const severityMap = {
-      strike: 'high',
-      weather: 'high',
-      protest: 'medium',
-      flight: 'high',
-      staff: 'medium',
-      supply: 'medium',
-      system: 'critical',
-      policy: 'medium',
-      economy: 'low',
-      other: 'medium'
-    };
-
-    return severityMap[mainType] || 'medium';
-  }
-
-  /**
-   * Generate tags for the alert
-   */
-  generateTags(disruption) {
-    const tags = [disruption.mainType, disruption.subType, disruption.city];
-
-    // Add relevant keywords
-    if (disruption.title.toLowerCase().includes('ryanair')) tags.push('ryanair');
-    if (disruption.title.toLowerCase().includes('easyjet')) tags.push('easyjet');
-    if (disruption.title.toLowerCase().includes('ba') || disruption.title.toLowerCase().includes('british airways')) tags.push('ba');
-    if (disruption.title.toLowerCase().includes('heathrow')) tags.push('heathrow');
-    if (disruption.title.toLowerCase().includes('gatwick')) tags.push('gatwick');
-    if (disruption.title.toLowerCase().includes('scotrail') || disruption.title.toLowerCase().includes('lner')) tags.push('rail');
-
-    return [...new Set(tags)]; // Remove duplicates
-  }
-
-  /**
-   * Calculate impact assessment
-   */
-  calculateImpact(disruption) {
-    // Basic impact assessment based on disruption type
-    const impactMap = {
-      strike: { level: 'high', description: 'Travel disruption affecting multiple routes' },
-      weather: { level: 'high', description: 'Weather conditions may delay or cancel travel' },
-      protest: { level: 'medium', description: 'Potential for travel disruptions in affected areas' },
-      flight: { level: 'high', description: 'Flight operations may be affected' },
-      staff: { level: 'medium', description: 'Service levels may be reduced' },
-      supply: { level: 'low', description: 'Limited impact on travel' },
-      system: { level: 'critical', description: 'Critical infrastructure may be affected' },
-      policy: { level: 'medium', description: 'Travel restrictions may apply' },
-      economy: { level: 'low', description: 'Economic factors may influence travel' },
-      other: { level: 'medium', description: 'General disruption possible' }
-    };
-
-    return impactMap[disruption.mainType] || impactMap.other;
-  }
-
-  /**
-   * Generate sectors affected by disruption type
-   */
-  generateSectors(mainType) {
-    const sectorMap = {
-      strike: ['Airlines', 'Transportation', 'Travel'],
-      weather: ['Airlines', 'Transportation', 'Tourism', 'Hospitality'],
-      protest: ['Transportation', 'Tourism', 'Business Travel'],
-      flight_issues: ['Airlines', 'Transportation', 'Travel'],
-      staff_shortage: ['Airlines', 'Hospitality', 'Transportation'],
-      supply_chain: ['Airlines', 'Hospitality', 'Transportation'],
-      system_failure: ['Airlines', 'Transportation', 'Technology'],
-      policy: ['Travel', 'Tourism', 'International Business'],
-      economy: ['Tourism', 'Hospitality', 'Business Travel'],
-      other: ['Transportation', 'Travel']
-    };
-
-    return sectorMap[mainType] || ALERT_SECTORS.slice(0, 2);
-  }
-
-  /**
-   * Generate expected recovery time
-   */
-  generateRecoveryExpected(mainType) {
-    const recoveryMap = {
-      strike: '2-7 days',
-      weather: '1-3 days',
-      protest: '1-2 days',
-      flight: '1-5 days',
-      staff: '3-7 days',
-      supply: '3-10 days',
-      system: '1-24 hours',
-      policy: 'Variable',
-      economy: 'Weeks to months',
-      other: 'Variable'
-    };
-
-    return recoveryMap[mainType] || 'Variable';
-  }
 
 
-  /**
-   * Generate "when" text for header generation
-   */
-  generateWhenText(startDate) {
-    if (!startDate) return 'this weekend';
 
-    const start = new Date(startDate);
-    const now = new Date();
-    const diffDays = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays <= 0) return 'today';
-    if (diffDays === 1) return 'tomorrow';
-    if (diffDays <= 7) return 'this weekend';
-    if (diffDays <= 14) return 'next week';
-
-    return 'this weekend'; // Default fallback
-  }
-
-  /**
-   * Get confidence score for source type
-   */
-  getSourceConfidence(sourceType) {
-    const confidenceMap = {
-      official: 0.9,
-      major_news: 0.7,
-      other_news: 0.5,
-      social: 0.3
-    };
-
-    return confidenceMap[sourceType] || 0.5;
-  }
-
-  /**
-   * Generate LLM content (tone and header)
-   */
-  async generateLLMContent(alertData) {
-    try {
-      const sources = alertData.confidenceSources.map(s => s.source).join(', ');
-
-      // Generate tone using exact prompt from SCORING & PUBLISHING.pdf
-      const tonePrompt = `Say ONE word: Early, Developing, or Confirmed.
-
-Event: ${alertData.title}
-
-Sources: ${sources}
-
-Return only one word: Early, Developing, or Confirmed.`;
-
-      const tone = await grokService.generateTone(alertData.title, sources);
-
-      // For header generation, we need impact data (rooms/value)
-      // This will be called when impact data is available
-      let header = alertData.title; // Default fallback
-
-      // If we have impact data, generate proper header
-      if (alertData.nightsAtRisk && alertData.poundsAtRisk) {
-        const when = this.generateWhenText(alertData.startDate);
-        header = await grokService.generateHeader(
-          alertData.mainType,
-          alertData.nightsAtRisk,
-          alertData.poundsAtRisk,
-          when
-        );
-      }
-
-      return {
-        tone,
-        header
-      };
-
-    } catch (error) {
-      console.error('Error generating LLM content:', error);
-      return {
-        tone: 'Developing',
-        header: alertData.title
-      };
-    }
-  }
 
   /**
    * Archive old alerts
@@ -509,11 +290,10 @@ Return only one word: Early, Developing, or Confirmed.`;
       const result = await Alert.updateMany(
         {
           endDate: { $lt: thirtyDaysAgo },
-          alertStatus: { $ne: 'archived' }
+          status: { $ne: 'expired' }
         },
         {
-          alertStatus: 'archived',
-          lastUpdated: new Date()
+          status: 'expired'
         }
       );
 
