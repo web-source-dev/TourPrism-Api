@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const Alert = require('../models/Alert');
 const { CONFIDENCE_SCORING } = require('../config/constants');
 const alertsData = require('../../alerts.json');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
 
 // Helper function to determine source credibility
 function getSourceCredibility(source) {
@@ -82,7 +86,7 @@ function getEndDate(startDate) {
 async function seedAlerts() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/TourPrism', {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://muhammadnouman72321:F29uLyXFtRUElcQX@tourprism.bmeqq.mongodb.net/?retryWrites=true&w=majority&appName=TourPrism', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });

@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const dotenv = require('dotenv');
+
+dotenv.config();  
 
 // User data to seed
 const usersToSeed = [
@@ -45,7 +48,7 @@ const usersToSeed = [
 async function seedUsers() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/TourPrism', {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://muhammadnouman72321:F29uLyXFtRUElcQX@tourprism.bmeqq.mongodb.net/?retryWrites=true&w=majority&appName=TourPrism', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });

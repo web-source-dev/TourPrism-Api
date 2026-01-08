@@ -1562,53 +1562,82 @@ const getSystemAnalytics = async (startDate, endDate) => {
 // Helper function for revenue analytics
 const getRevenueAnalytics = async (startDate, endDate) => {
   try {
-    // Revenue potential by alert type
-    const revenueByType = await Alert.aggregate([
-      {
-        $match: {
-          status: 'approved',
-          mainType: { $exists: true },
-          revenueAtRisk: { $exists: true, $gt: 0 }
-        }
-      },
-      {
-        $group: {
-          _id: "$mainType",
-          totalRevenueAtRisk: { $sum: "$revenueAtRisk" },
-          totalRevenueSaved: { $sum: "$revenueSaved" },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { totalRevenueAtRisk: -1 }
-      }
-    ]);
+    // Get all approved alerts in the date range
+    const alerts = await Alert.find({
+      status: 'approved',
+      createdAt: { $gte: startDate, $lte: endDate }
+    });
 
-    // Monthly revenue trends (based on alert creation)
-    const monthlyRevenue = await Alert.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          status: 'approved',
-          revenueAtRisk: { $exists: true }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m", date: "$createdAt" }
-          },
-          totalRevenueAtRisk: { $sum: "$revenueAtRisk" },
-          totalRevenueSaved: { $sum: "$revenueSaved" },
-          alertCount: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { "_id": 1 }
-      }
-    ]);
+    // Get all active users with complete profiles
+    const users = await User.find({
+      status: 'active',
+      'company.rooms': { $exists: true, $ne: null },
+      'company.avgRoomRate': { $exists: true, $ne: null },
+      'company.size': { $exists: true }
+    });
 
-    // Hotel size impact distribution
+    // Import disruption calculations
+    const disruptionCalculations = require('../utils/disruptionCalculations');
+
+    let totalRevenueAtRisk = 0;
+    let totalRevenueSaved = 0;
+    const revenueByType = {};
+    const monthlyRevenue = {};
+
+    // Calculate revenue impact for each alert against each user
+    for (const alert of alerts) {
+      for (const user of users) {
+        const riskData = disruptionCalculations.calculateDisruptionRisk(alert, user);
+
+        // Accumulate totals
+        totalRevenueAtRisk += riskData.poundsAtRisk;
+        totalRevenueSaved += riskData.poundsSaved;
+
+        // Group by alert type
+        const alertType = alert.mainType || 'other';
+        if (!revenueByType[alertType]) {
+          revenueByType[alertType] = {
+            totalRevenueAtRisk: 0,
+            totalRevenueSaved: 0,
+            count: 0
+          };
+        }
+        revenueByType[alertType].totalRevenueAtRisk += riskData.poundsAtRisk;
+        revenueByType[alertType].totalRevenueSaved += riskData.poundsSaved;
+        revenueByType[alertType].count += 1;
+
+        // Monthly grouping
+        const monthKey = alert.createdAt.toISOString().substring(0, 7); // YYYY-MM format
+        if (!monthlyRevenue[monthKey]) {
+          monthlyRevenue[monthKey] = {
+            totalRevenueAtRisk: 0,
+            totalRevenueSaved: 0,
+            alertCount: 0
+          };
+        }
+        monthlyRevenue[monthKey].totalRevenueAtRisk += riskData.poundsAtRisk;
+        monthlyRevenue[monthKey].totalRevenueSaved += riskData.poundsSaved;
+        monthlyRevenue[monthKey].alertCount += 1;
+      }
+    }
+
+    // Convert revenueByType object to array format expected by frontend
+    const revenueByTypeArray = Object.entries(revenueByType).map(([type, data]) => ({
+      _id: type,
+      totalRevenueAtRisk: data.totalRevenueAtRisk,
+      totalRevenueSaved: data.totalRevenueSaved,
+      count: data.count
+    })).sort((a, b) => b.totalRevenueAtRisk - a.totalRevenueAtRisk);
+
+    // Convert monthlyRevenue object to array format
+    const monthlyRevenueArray = Object.entries(monthlyRevenue).map(([month, data]) => ({
+      _id: month,
+      totalRevenueAtRisk: data.totalRevenueAtRisk,
+      totalRevenueSaved: data.totalRevenueSaved,
+      alertCount: data.alertCount
+    })).sort((a, b) => a._id.localeCompare(b._id));
+
+    // Hotel size impact distribution (unchanged)
     const hotelSizeImpact = await User.aggregate([
       {
         $match: {
@@ -1631,30 +1660,20 @@ const getRevenueAnalytics = async (startDate, endDate) => {
       }
     ]);
 
-    // Calculate total potential revenue from all alerts
-    const totalRevenueStats = await Alert.aggregate([
-      {
-        $match: { status: 'approved' }
-      },
-      {
-        $group: {
-          _id: null,
-          totalRevenueAtRisk: { $sum: "$revenueAtRisk" },
-          totalRevenueSaved: { $sum: "$revenueSaved" },
-          totalAlerts: { $sum: 1 }
-        }
-      }
-    ]);
+    // Calculate total stats
+    const totalStats = {
+      totalRevenueAtRisk: Math.round(totalRevenueAtRisk),
+      totalRevenueSaved: Math.round(totalRevenueSaved),
+      totalAlerts: alerts.length,
+      totalUsers: users.length
+    };
 
     return {
-      revenueByType: revenueByType,
-      monthlyRevenue: monthlyRevenue,
+      revenueByType: revenueByTypeArray,
+      monthlyRevenue: monthlyRevenueArray,
       hotelSizeImpact: hotelSizeImpact,
-      totalStats: totalRevenueStats[0] || {},
-      totalHotels: await User.countDocuments({
-        status: 'active',
-        'company.size': { $exists: true }
-      })
+      totalStats: totalStats,
+      totalHotels: users.length
     };
   } catch (error) {
     console.error('Error in revenue analytics:', error);
