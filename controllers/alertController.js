@@ -5,7 +5,31 @@ const { io } = require("../index.js");
 // Get all alerts for feed page
 const getAllAlerts = async (req, res) => {
   try {
-    const { city, limit = 10, page = 1, sortBy = 'latest', activeNow } = req.query;
+    const { city, limit = 10, page = 1, sortBy = 'latest', activeNow, id } = req.query;
+
+    // If specific alert ID is requested, return just that alert
+    if (id) {
+      const alert = await Alert.findById(id)
+        .populate('followedBy', '_id')
+        .lean();
+
+      if (!alert) {
+        return res.status(404).json({
+          success: false,
+          message: 'Alert not found'
+        });
+      }
+
+      return res.json({
+        success: true,
+        alerts: [{
+          ...alert,
+          isFollowing: req.userId ? alert.followedBy?.some(user => user._id.toString() === req.userId) : false
+        }],
+        totalCount: 1,
+        currentPage: 1
+      });
+    }
 
     // Base query - active alerts are those with status "approved"
     // The system automatically archives alerts when end date passes

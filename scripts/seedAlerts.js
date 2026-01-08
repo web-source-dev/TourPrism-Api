@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Alert = require('../models/Alert');
 const { CONFIDENCE_SCORING } = require('../config/constants');
+const grokService = require('../config/grok');
 const alertsData = require('../../alerts.json');
 const dotenv = require('dotenv');
 
@@ -86,7 +87,7 @@ function getEndDate(startDate) {
 async function seedAlerts() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://muhammadnouman72321:F29uLyXFtRUElcQX@tourprism.bmeqq.mongodb.net/?retryWrites=true&w=majority&appName=TourPrism', {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/TourPrism', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -134,6 +135,43 @@ async function seedAlerts() {
     // Sort by date for better organization
     alertsToInsert.sort((a, b) => a.startDate - b.startDate);
 
+    // Generate header prefixes for all alerts before inserting
+    // Note: insertMany() bypasses Mongoose middleware, so we need to generate manually
+    console.log(`Generating header prefixes for ${alertsToInsert.length} alerts...`);
+    let generatedCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < alertsToInsert.length; i++) {
+      const alert = alertsToInsert[i];
+      try {
+        const headerPrefix = await grokService.generateHeaderPrefix(
+          alert.title,
+          alert.confidence
+        );
+        
+        if (headerPrefix) {
+          alert.headerPrefix = headerPrefix;
+          generatedCount++;
+          if ((i + 1) % 10 === 0) {
+            console.log(`  Generated ${i + 1}/${alertsToInsert.length} header prefixes...`);
+          }
+        } else {
+          failedCount++;
+          console.warn(`  Failed to generate header prefix for: "${alert.title}"`);
+        }
+
+        // Small delay to avoid rate limiting
+        if (i < alertsToInsert.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      } catch (error) {
+        failedCount++;
+        console.error(`  Error generating header prefix for "${alert.title}":`, error.message);
+      }
+    }
+
+    console.log(`Header prefix generation complete: ${generatedCount} generated, ${failedCount} failed`);
+
     // Insert all alerts
     const insertedAlerts = await Alert.insertMany(alertsToInsert);
     console.log(`Successfully seeded ${insertedAlerts.length} alerts`);
@@ -160,6 +198,9 @@ async function seedAlerts() {
     console.log('\nSample alerts:');
     insertedAlerts.slice(0, 5).forEach((alert, index) => {
       console.log(`${index + 1}. ${alert.title} (${alert.city}) - Confidence: ${alert.confidence} - Date: ${alert.startDate.toISOString().split('T')[0]}`);
+      if (alert.headerPrefix) {
+        console.log(`   Header Prefix: "${alert.headerPrefix}"`);
+      }
     });
 
   } catch (error) {

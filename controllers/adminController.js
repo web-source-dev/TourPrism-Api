@@ -1564,7 +1564,7 @@ const getRevenueAnalytics = async (startDate, endDate) => {
   try {
     // Get all approved alerts in the date range
     const alerts = await Alert.find({
-      status: 'approved',
+          status: 'approved',
       createdAt: { $gte: startDate, $lte: endDate }
     });
 
@@ -1618,7 +1618,7 @@ const getRevenueAnalytics = async (startDate, endDate) => {
         monthlyRevenue[monthKey].totalRevenueAtRisk += riskData.poundsAtRisk;
         monthlyRevenue[monthKey].totalRevenueSaved += riskData.poundsSaved;
         monthlyRevenue[monthKey].alertCount += 1;
-      }
+        }
     }
 
     // Convert revenueByType object to array format expected by frontend
