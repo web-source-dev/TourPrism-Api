@@ -4,7 +4,7 @@ class GrokService {
   constructor() {
     this.apiKey = process.env.GROK_API_KEY;
     this.baseURL = process.env.GROK_BASE_URL || 'https://api.x.ai/v1'; 
-
+ 
     if (!this.apiKey) {
       console.warn('GROK_API_KEY not found in environment variables');
     }
