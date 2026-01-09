@@ -344,16 +344,10 @@ const disruptionCalculations = {
     const nightsSaved = this.calculateNightsSaved(nightsAtRisk, recoveryRate);
     const poundsSaved = this.calculatePoundsSaved(nightsSaved, profile.avgRoomRate);
 
-    // Format header - use headerPrefix if available, otherwise fall back to generated header
-    const when = this.formatWhenText(alert.startDate);
     let header;
-    if (alert.headerPrefix) {
-      // Use LLM-generated header prefix: "${headerPrefix} ${nightsAtRisk} rooms ${when}."
-      header = `${alert.headerPrefix} ${nightsAtRisk} rooms ${when}.`;
-    } else {
-      // Fallback to generated header
-      header = `${alert.mainType?.replace('_', ' ') || 'Disruption'} could empty ${nightsAtRisk} rooms ${when}.`;
-    }
+    if (alert.title) {
+      header = alert.title;
+    } 
 
     // Format time ahead
     const timeAhead = this.formatTimeAhead(alert.startDate);
