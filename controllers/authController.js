@@ -261,7 +261,26 @@ const register = async (req, res) => {
     user = await User.create(userData);
 
     // Send verification email
-    await sendVerificationEmail(email, otp);
+    try {
+      await sendVerificationEmail(email, otp);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Log the error but don't fail registration - user can request resend
+      await Logger.log(req, "signup", {
+        method: "email",
+        signupCompleted: false,
+        awaitingVerification: true,
+        emailError: emailError.message
+      });
+      
+      // Still return success but inform user about email issue
+      return res.status(201).json({
+        message:
+          "Registration successful, but we couldn't send the verification email. Please use 'Resend OTP' to try again.",
+        userId: user._id,
+        emailSent: false
+      });
+    }
 
     // Log signup
     await Logger.log(req, "signup", {
@@ -371,9 +390,16 @@ const resendOTP = async (req, res) => {
     await user.save();
 
     // Send new verification email
-    await sendVerificationEmail(user.email, otp);
-
-    res.json({ message: "OTP resent successfully" });
+    try {
+      await sendVerificationEmail(user.email, otp);
+      res.json({ message: "OTP resent successfully" });
+    } catch (emailError) {
+      console.error('Failed to resend verification email:', emailError);
+      res.status(500).json({ 
+        message: "Failed to send verification email. Please check your email configuration or try again later.",
+        error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -718,7 +744,25 @@ const login = async (req, res) => {
           await user.save();
 
           // Send verification email
-          await sendVerificationEmail(email, otp);
+          try {
+            await sendVerificationEmail(email, otp);
+          } catch (emailError) {
+            console.error('Failed to send verification email during login:', emailError);
+            // Log the error but still allow user to request resend
+            await Logger.log(req, "login", {
+              method: "email",
+              success: false,
+              reason: "needs_verification",
+              emailError: emailError.message
+            });
+
+            return res.status(200).json({
+              message: "Please verify your email. We couldn't send the verification email automatically. Please use 'Resend OTP' to try again.",
+              needsVerification: true,
+              userId: user._id,
+              emailSent: false
+            });
+          }
 
           // Log login attempt requiring verification
           await Logger.log(req, "login", {

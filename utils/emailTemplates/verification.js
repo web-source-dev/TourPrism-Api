@@ -3,7 +3,7 @@ const { transporter } = require('../emailService.js');
 // Send verification email
 const sendVerificationEmail = async (email, otp) => {
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
       to: email,
       subject: 'Email Verification - TourPrism',
       html: `
@@ -14,15 +14,21 @@ const sendVerificationEmail = async (email, otp) => {
           <p>This OTP will expire in 5 minutes.</p>
           <p>If you didn't request this verification, please ignore this email.</p>
         </div>
-      `
+      `,
+      emailType: 'verification'
     };
 
     try {
       await transporter.sendMail(mailOptions);
+      console.log(`Verification email sent successfully to ${email}`);
       return true;
     } catch (error) {
       console.error('Error sending verification email:', error);
-      return false;
+      // Log more details for debugging
+      if (error.response) {
+        console.error('Brevo API Error Response:', JSON.stringify(error.response.body, null, 2));
+      }
+      throw error; // Re-throw to allow caller to handle
     }
   };
 

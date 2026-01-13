@@ -1028,7 +1028,7 @@ const updateUserRole = async (req, res) => {
   }
 };
 
-// Delete user (admin only) - soft delete by setting status to deleted
+// Delete user (admin only) - permanently delete from database
 const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -1038,20 +1038,47 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Soft delete by setting status to deleted
-    user.status = 'deleted';
-    user.updated = Date.now();
-    await user.save();
+    // Store user info for logging before deletion
+    const userEmail = user.email;
+    const userRole = user.role;
+
+    // Clean up related data before deleting user
+    const Booking = require('../models/Booking.js');
+    const Alert = require('../models/Alert.js');
+
+    // Delete all bookings associated with this user (hotelId)
+    const bookingsDeleted = await Booking.deleteMany({ hotelId: userId });
+    console.log(`Deleted ${bookingsDeleted.deletedCount} bookings for user ${userId}`);
+
+    // Remove user from alerts' followedBy arrays
+    const alertsUpdated = await Alert.updateMany(
+      { followedBy: userId },
+      { $pull: { followedBy: userId } }
+    );
+    console.log(`Removed user from ${alertsUpdated.modifiedCount} alerts' followedBy arrays`);
+
+    // Permanently delete the user from database
+    await User.findByIdAndDelete(userId);
+
+    // Note: Logs with userId reference are kept for audit trail purposes
 
     // Log user deletion
     await Logger.log(req, 'admin_user_deleted', {
       userId,
-      userEmail: user.email
+      userEmail,
+      userRole,
+      deletionType: 'permanent',
+      bookingsDeleted: bookingsDeleted.deletedCount,
+      alertsUpdated: alertsUpdated.modifiedCount
     });
 
     res.json({
       success: true,
-      message: "User deleted successfully"
+      message: "User permanently deleted successfully",
+      details: {
+        bookingsDeleted: bookingsDeleted.deletedCount,
+        alertsUpdated: alertsUpdated.modifiedCount
+      }
     });
   } catch (error) {
     console.error('Error deleting user:', error);

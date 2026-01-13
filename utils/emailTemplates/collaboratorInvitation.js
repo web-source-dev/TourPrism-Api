@@ -11,7 +11,7 @@ const sendCollaboratorInvitation = async (email, ownerFirstName, ownerLastName, 
     const greeting = collaboratorName ? `Hello ${collaboratorName},` : 'Hello,';
     
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
       to: email,
       subject: `${ownerName} has invited you to collaborate on TourPrism`,
       html: `

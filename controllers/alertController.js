@@ -33,8 +33,16 @@ const getAllAlerts = async (req, res) => {
 
     // Base query - active alerts are those with status "approved"
     // The system automatically archives alerts when end date passes
+    // Additionally, hide alerts whose startDate is in the past (negative "time ahead")
+    // Keep alerts with no startDate to avoid unintentionally hiding legacy entries
+    const now = new Date();
     let query = {
       status: "approved",
+      $or: [
+        { startDate: { $exists: false } },
+        { startDate: null },
+        { startDate: { $gte: now } }
+      ]
     };
 
     // City filter - simple exact match

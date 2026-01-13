@@ -48,7 +48,7 @@ const sendAlertNotificationToGuest = async (email, name, alertTitle, message, al
     }
     
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
       to: email,
       subject: `${alertTitle}`,
       html: `

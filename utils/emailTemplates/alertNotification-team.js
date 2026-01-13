@@ -49,7 +49,7 @@ const sendAlertNotificationToTeam = async (email, name, role, alertTitle, messag
   }
   
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
     to: email,
     subject: `${alertTitle}`,
     html: `
