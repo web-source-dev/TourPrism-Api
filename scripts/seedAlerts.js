@@ -87,7 +87,7 @@ function getEndDate(startDate) {
 async function seedAlerts() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/TourPrism', {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Tourprism', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });

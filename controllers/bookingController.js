@@ -1,4 +1,4 @@
-const Booking = require('../models/Booking.js');
+const { Booking, Upload } = require('../models/Booking.js');
 const Logger = require('../utils/logger.js');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
@@ -16,9 +16,26 @@ const uploadBookings = async (req, res) => {
       });
     }
 
-    const { buffer, originalname } = req.file;
+    const { buffer, originalname, size } = req.file;
     const hotelId = req.userId;
 
+    // Generate unique import batch ID
+    const importBatch = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create upload tracking record
+    const upload = new Upload({
+      hotelId,
+      fileName: `${importBatch}.csv`,
+      originalFileName: originalname,
+      fileSize: size,
+      importBatch,
+      totalRecords: 0,
+      successfulRecords: 0,
+      failedRecords: 0,
+      status: 'processing'
+    });
+
+    await upload.save();
 
     const bookings = [];
     const errors = [];
@@ -109,7 +126,9 @@ const uploadBookings = async (req, res) => {
               nights: parseInt(row.nights),
               bookingRate: parseFloat(row.bookingRate.toString().replace(/[£$,]/g, '')),
               roomType: row.roomType ? row.roomType.toString().trim() : 'Standard',
-              bookingSource: row.bookingSource ? row.bookingSource.toString().trim() : 'Direct'
+              bookingSource: row.bookingSource ? row.bookingSource.toString().trim() : 'Direct',
+              importBatch,
+              fileName: originalname
             };
 
             // Validate data types
@@ -171,8 +190,17 @@ const uploadBookings = async (req, res) => {
     if (bookings.length > 0) {
       const savedBookings = await Booking.insertMany(bookings, { ordered: false });
 
+      // Update upload record with final counts
+      upload.totalRecords = processedCount;
+      upload.successfulRecords = savedBookings.length;
+      upload.failedRecords = errors.length;
+      upload.status = 'completed';
+      upload.errorDetails = errors.slice(0, 50); // Store first 50 errors
+      await upload.save();
+
       await Logger.log(req, 'bookings_upload', {
         fileName: originalname,
+        importBatch,
         totalRows: processedCount,
         successfulBookings: savedBookings.length,
         errors: errors.length
@@ -184,11 +212,20 @@ const uploadBookings = async (req, res) => {
         data: {
           totalProcessed: processedCount,
           successful: savedBookings.length,
-          errors: errors.length
+          errors: errors.length,
+          importBatch
         },
         errors: errors.slice(0, 10) // Show first 10 errors for reference
       });
     }
+
+    // Update upload record even if no bookings were saved
+    upload.totalRecords = processedCount;
+    upload.successfulRecords = 0;
+    upload.failedRecords = errors.length;
+    upload.status = 'completed';
+    upload.errorDetails = errors.slice(0, 50);
+    await upload.save();
 
     return res.status(200).json({
       success: true,
@@ -212,6 +249,50 @@ const uploadBookings = async (req, res) => {
       success: false,
       message: 'Failed to process CSV file',
       error: error.message
+    });
+  }
+};
+
+/**
+ * Get uploads for the authenticated hotel
+ */
+const getUploads = async (req, res) => {
+  try {
+    const hotelId = req.userId;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const uploads = await Upload.find({ hotelId })
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const total = await Upload.countDocuments({ hotelId });
+
+    res.json({
+      success: true,
+      data: {
+        uploads,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting uploads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get uploads'
     });
   }
 };
@@ -368,6 +449,87 @@ const getBookingStats = async (req, res) => {
 };
 
 /**
+ * Get booking summary for dashboard
+ */
+const getBookingSummary = async (req, res) => {
+  try {
+    const hotelId = req.userId;
+
+    // Get latest upload info
+    const latestUpload = await Upload.findOne({ hotelId })
+      .sort({ createdAt: -1 })
+      .select('originalFileName createdAt')
+      .lean();
+
+    // Get booking statistics
+    const stats = await Booking.aggregate([
+      {
+        $match: {
+          hotelId: new mongoose.Types.ObjectId(hotelId)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalBookings: { $sum: 1 },
+          totalRevenue: { $sum: { $multiply: ['$bookingRate', '$nights'] } },
+          minCheckInDate: { $min: '$checkInDate' },
+          maxCheckInDate: { $max: '$checkInDate' }
+        }
+      }
+    ]);
+
+    const result = stats[0] || {
+      totalBookings: 0,
+      totalRevenue: 0,
+      minCheckInDate: null,
+      maxCheckInDate: null
+    };
+
+    // Calculate booking period
+    let bookingPeriod = null;
+    if (result.minCheckInDate && result.maxCheckInDate) {
+      const startMonth = result.minCheckInDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const endMonth = result.maxCheckInDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      bookingPeriod = `${startMonth} to ${endMonth}`;
+    }
+
+    // For now, we'll use placeholder values for at-risk calculations
+    // In a real implementation, this would be based on business logic
+    const bookingsAtRisk = Math.floor(result.totalBookings * 0.24); // 24% at risk
+    const revenueAtRisk = Math.floor(result.totalRevenue * 0.15); // 15% at risk
+
+    const summary = {
+      latestFile: latestUpload?.originalFileName || 'No uploads yet',
+      lastUpload: latestUpload ? latestUpload.createdAt.toLocaleDateString('en-GB') : 'Never',
+      bookingPeriod: bookingPeriod || 'No bookings',
+      bookingsAtRisk,
+      revenueAtRisk,
+      totalBookings: result.totalBookings,
+      totalRevenue: result.totalRevenue
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: summary
+    });
+
+  } catch (error) {
+    console.error('Error getting booking summary:', error);
+
+    await Logger.log(req, 'booking_summary_error', {
+      error: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve booking summary',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Update booking status
  */
 const updateBookingStatus = async (req, res) => {
@@ -511,7 +673,9 @@ const getBookingsAtRisk = async (req, res) => {
 
 module.exports = {
   uploadBookings,
+  getUploads,
   getBookings,
+  getBookingSummary,
   getBookingStats,
   updateBookingStatus,
   deleteBooking,

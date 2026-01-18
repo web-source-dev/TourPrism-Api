@@ -57,6 +57,16 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+
+  // Upload tracking
+  importBatch: {
+    type: String,
+    index: true
+  },
+  fileName: {
+    type: String,
+    trim: true
   }
 }, { timestamps: true });
 
@@ -77,5 +87,62 @@ bookingSchema.virtual('totalRevenue').get(function() {
 
 const Booking = mongoose.model('Booking', bookingSchema);
 
-module.exports = Booking;
+// Upload tracking model
+const uploadSchema = new mongoose.Schema({
+  hotelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  fileName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  originalFileName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  fileSize: {
+    type: Number,
+    required: true
+  },
+  totalRecords: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  successfulRecords: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  failedRecords: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ['processing', 'completed', 'failed'],
+    default: 'processing'
+  },
+  errorDetails: [{
+    row: Number,
+    field: String,
+    message: String
+  }],
+  importBatch: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  }
+}, { timestamps: true });
+
+const Upload = mongoose.model('Upload', uploadSchema);
+
+module.exports = { Booking, Upload };
 

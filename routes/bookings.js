@@ -2,7 +2,9 @@ const express = require('express');
 const multer = require('multer');
 const {
   uploadBookings,
+  getUploads,
   getBookings,
+  getBookingSummary,
   getBookingStats,
   updateBookingStatus,
   deleteBooking,
@@ -38,6 +40,12 @@ router.post('/upload', upload.single('bookingsFile'), uploadBookings);
 
 // Get bookings with pagination and filters
 router.get('/', getBookings);
+
+// Get uploads history
+router.get('/uploads', getUploads);
+
+// Get booking summary for dashboard
+router.get('/summary', getBookingSummary);
 
 // Get booking statistics
 router.get('/stats', getBookingStats);

@@ -13,12 +13,12 @@ const sendCollaboratorInvitation = async (email, ownerFirstName, ownerLastName, 
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
       to: email,
-      subject: `${ownerName} has invited you to collaborate on TourPrism`,
+      subject: `${ownerName} has invited you to collaborate on Tourprism`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Invitation to Collaborate</h2>
           <p>${greeting}</p>
-          <p>${ownerName} has invited you to collaborate on their TourPrism account as a <strong>${role}</strong>.</p>
+          <p>${ownerName} has invited you to collaborate on their Tourprism account as a <strong>${role}</strong>.</p>
           <p>${roleDescription}</p>
           <p>To accept this invitation, please click the button below to set up your password and access the account:</p>
           <div style="text-align: center; margin: 30px 0;">
@@ -28,7 +28,7 @@ const sendCollaboratorInvitation = async (email, ownerFirstName, ownerLastName, 
           <p style="word-break: break-all; font-size: 12px; color: #666;">${inviteUrl}</p>
           <p>This invitation link will expire in 7 days.</p>
           <p>If you didn't expect this invitation or don't want to join, you can safely ignore this email.</p>
-          <p>Thank you,<br>The TourPrism Team</p>
+          <p>Thank you,<br>The Tourprism Team</p>
         </div>
       `
     };

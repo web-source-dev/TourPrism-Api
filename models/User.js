@@ -64,6 +64,18 @@ const userSchema = new mongoose.Schema(
         type: [String],
         default: []
       }
+    },
+    settings: {
+      recoveryActions: {
+        sendAutomaticStayAnyway: { type: Boolean, default: true },
+        enableOverbooking: { type: Boolean, default: false },
+        flexibleRates: { type: Boolean, default: false }
+      },
+      communicationPreferences: {
+        weeklySummary: { type: Boolean, default: true },
+        highRiskAlerts: { type: Boolean, default: true },
+        monthlyPerformance: { type: Boolean, default: true }
+      }
     }
   },
   { timestamps: true }

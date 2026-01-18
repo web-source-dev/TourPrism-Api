@@ -262,7 +262,7 @@ const register = async (req, res) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(email, otp);
+    await sendVerificationEmail(email, otp);
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError);
       // Log the error but don't fail registration - user can request resend
@@ -391,8 +391,8 @@ const resendOTP = async (req, res) => {
 
     // Send new verification email
     try {
-      await sendVerificationEmail(user.email, otp);
-      res.json({ message: "OTP resent successfully" });
+    await sendVerificationEmail(user.email, otp);
+    res.json({ message: "OTP resent successfully" });
     } catch (emailError) {
       console.error('Failed to resend verification email:', emailError);
       res.status(500).json({ 
@@ -452,7 +452,7 @@ const forgotPassword = async (req, res) => {
 
     // Send password reset email using Brevo template
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-    sendSmtpEmail.templateId = 4; // TourPrism Reset Password template ID
+    sendSmtpEmail.templateId = 4; // Tourprism Reset Password template ID
     sendSmtpEmail.sender = {
       email: process.env.EMAIL_FROM || "no-reply@tourprism.com",
     };
@@ -745,7 +745,7 @@ const login = async (req, res) => {
 
           // Send verification email
           try {
-            await sendVerificationEmail(email, otp);
+          await sendVerificationEmail(email, otp);
           } catch (emailError) {
             console.error('Failed to send verification email during login:', emailError);
             // Log the error but still allow user to request resend
@@ -1172,6 +1172,70 @@ const handleLogout = async (req, res) => {
   }
 };
 
+// Delete Account (self-deletion for regular users)
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const user = req.user;
+
+    // Prevent admin account deletion through this endpoint
+    if (user.role === 'admin') {
+      return res.status(403).json({
+        message: "Admin accounts cannot be deleted through this endpoint. Please contact support."
+      });
+    }
+
+    // Store user info for logging before deletion
+    const userEmail = user.email;
+    const userRole = user.role;
+
+    // Clean up related data before deleting user
+    const Booking = require('../models/Booking.js');
+    const Alert = require('../models/Alert.js');
+
+    // Delete all bookings associated with this user (hotelId)
+    const bookingsDeleted = await Booking.deleteMany({ hotelId: userId });
+    console.log(`Deleted ${bookingsDeleted.deletedCount} bookings for user ${userId}`);
+
+    // Remove user from alerts' followedBy arrays
+    const alertsUpdated = await Alert.updateMany(
+      { followedBy: userId },
+      { $pull: { followedBy: userId } }
+    );
+    console.log(`Removed user from ${alertsUpdated.modifiedCount} alerts' followedBy arrays`);
+
+    // Permanently delete the user from database
+    await User.findByIdAndDelete(userId);
+
+    // Log the account deletion
+    try {
+      await Logger.log(req, 'account_deleted', {
+        userId,
+        userEmail,
+        userRole,
+        bookingsDeleted: bookingsDeleted.deletedCount,
+        alertsUpdated: alertsUpdated.modifiedCount
+      });
+    } catch (logError) {
+      console.error('Error logging account deletion:', logError);
+    }
+
+    // Clear authentication cookie
+    tokenManager.clearAuthCookie(res);
+
+    res.json({
+      message: "Account deleted successfully",
+      deletedData: {
+        bookingsDeleted: bookingsDeleted.deletedCount,
+        alertsUpdated: alertsUpdated.modifiedCount
+      }
+    });
+  } catch (error) {
+    console.error("Delete account error:", error);
+    res.status(500).json({ message: "Failed to delete account", error: error.message });
+  }
+};
+
 module.exports = {
   configureGoogleStrategy,
   configureMicrosoftStrategy,
@@ -1187,6 +1251,7 @@ module.exports = {
   verifyToken,
   getUserProfile,
   changePassword,
-  handleLogout
+  handleLogout,
+  deleteAccount
 };
 

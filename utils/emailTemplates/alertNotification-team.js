@@ -101,7 +101,7 @@ const sendAlertNotificationToTeam = async (email, name, role, alertTitle, messag
         ` : ''}
         
         <p>Please take appropriate action as required.</p>
-        <p>Thank you,<br>The TourPrism Team</p>
+        <p>Thank you,<br>The Tourprism Team</p>
       </div>
     `
   };

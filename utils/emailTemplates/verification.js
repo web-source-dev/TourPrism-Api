@@ -5,11 +5,11 @@ const sendVerificationEmail = async (email, otp) => {
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
       to: email,
-      subject: 'Email Verification - TourPrism',
+      subject: 'Email Verification - Tourprism',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Email Verification</h2>
-          <p>Thank you for registering with TourPrism. Please use the following OTP to verify your email address:</p>
+          <p>Thank you for registering with Tourprism. Please use the following OTP to verify your email address:</p>
           <h1 style="font-size: 36px; letter-spacing: 5px; text-align: center; color: #4CAF50;">${otp}</h1>
           <p>This OTP will expire in 5 minutes.</p>
           <p>If you didn't request this verification, please ignore this email.</p>

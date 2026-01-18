@@ -19,8 +19,9 @@ const {
   getUserProfile,
   changePassword,
   handleLogout,
+  deleteAccount,
 } = require("../controllers/authController.js");
-const { logout } = require("../middleware/auth.js");
+const { logout, isAuthenticated } = require("../middleware/auth.js");
 
 const router = express.Router();
 
@@ -83,6 +84,9 @@ router.post("/change-password", changePassword);
 
 // Logout endpoint
 router.post("/logout", logout, handleLogout);
+
+// Delete account endpoint
+router.delete("/delete-account", isAuthenticated, deleteAccount);
 
 
 module.exports = router;

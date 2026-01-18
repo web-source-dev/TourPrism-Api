@@ -135,6 +135,53 @@ const updateProfile = async (req, res) => {
       }
     }
 
+    // Update settings
+    if (updateData.settings) {
+      // Initialize settings object if it doesn't exist
+      if (!user.settings) {
+        user.settings = {
+          recoveryActions: {
+            sendAutomaticStayAnyway: true,
+            enableOverbooking: false,
+            flexibleRates: false
+          },
+          communicationPreferences: {
+            weeklySummary: true,
+            highRiskAlerts: true,
+            monthlyPerformance: true
+          }
+        };
+      }
+
+      // Update recovery actions
+      if (updateData.settings.recoveryActions) {
+        const recoveryActions = updateData.settings.recoveryActions;
+        if (recoveryActions.sendAutomaticStayAnyway !== undefined) {
+          user.settings.recoveryActions.sendAutomaticStayAnyway = recoveryActions.sendAutomaticStayAnyway;
+        }
+        if (recoveryActions.enableOverbooking !== undefined) {
+          user.settings.recoveryActions.enableOverbooking = recoveryActions.enableOverbooking;
+        }
+        if (recoveryActions.flexibleRates !== undefined) {
+          user.settings.recoveryActions.flexibleRates = recoveryActions.flexibleRates;
+        }
+      }
+
+      // Update communication preferences
+      if (updateData.settings.communicationPreferences) {
+        const commPrefs = updateData.settings.communicationPreferences;
+        if (commPrefs.weeklySummary !== undefined) {
+          user.settings.communicationPreferences.weeklySummary = commPrefs.weeklySummary;
+        }
+        if (commPrefs.highRiskAlerts !== undefined) {
+          user.settings.communicationPreferences.highRiskAlerts = commPrefs.highRiskAlerts;
+        }
+        if (commPrefs.monthlyPerformance !== undefined) {
+          user.settings.communicationPreferences.monthlyPerformance = commPrefs.monthlyPerformance;
+        }
+      }
+    }
+
     // Save user
     await user.save();
 

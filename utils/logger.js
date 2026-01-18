@@ -1,7 +1,7 @@
 const Logs = require('../models/Logs.js');
 
 /**
- * Centralized logging system for TourPrism
+ * Centralized logging system for Tourprism
  * Automatically handles user identification and creates user-friendly log messages
  */
 class Logger {

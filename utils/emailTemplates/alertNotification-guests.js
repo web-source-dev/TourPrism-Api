@@ -94,7 +94,7 @@ const sendAlertNotificationToGuest = async (email, name, alertTitle, message, al
           </div>
           
           <p>This information is provided to help you plan accordingly.</p>
-          <p>Thank you,<br>The TourPrism Team</p>
+          <p>Thank you,<br>The Tourprism Team</p>
         </div>
       `
     };

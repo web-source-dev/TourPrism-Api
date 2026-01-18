@@ -48,7 +48,7 @@ const usersToSeed = [
 async function seedUsers() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://muhammadnouman72321:F29uLyXFtRUElcQX@tourprism.bmeqq.mongodb.net/?retryWrites=true&w=majority&appName=TourPrism', {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://muhammadnouman72321:F29uLyXFtRUElcQX@tourprism.bmeqq.mongodb.net/?retryWrites=true&w=majority&appName=Tourprism', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
