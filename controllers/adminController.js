@@ -179,14 +179,12 @@ const deleteAlert = async (req, res) => {
       return res.status(404).json({ message: "Alert not found" });
     }
 
-    // Store alert info for logging
+    // Store alert info for logging before deletion
     const alertTitle = alert.title;
     const previousStatus = alert.status;
 
-    // Implement soft delete by setting status to "expired"
-    alert.status = "expired";
-
-    await alert.save();
+    // Permanently delete the alert from database
+    await Alert.findByIdAndDelete(alertId);
 
     // Log alert deletion
     try {
@@ -194,13 +192,13 @@ const deleteAlert = async (req, res) => {
         alertId,
         alertTitle,
         previousStatus,
-        newStatus: 'expired'
+        deletionType: 'permanent'
       });
     } catch (error) {
       console.error('Error logging alert deletion:', error);
     }
 
-    res.json({ success: true, message: "Alert deleted successfully" });
+    res.json({ success: true, message: "Alert permanently deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -1927,6 +1925,7 @@ const uploadBulkAlerts = async (req, res) => {
         },
         errors: errors.slice(0, 20)
       });
+      
     }
 
     // Save alerts to database
