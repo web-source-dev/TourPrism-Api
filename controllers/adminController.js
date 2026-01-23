@@ -1920,8 +1920,12 @@ const uploadBulkAlerts = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Too many errors in CSV file. Please fix the errors and try again.',
-        errors: errors.slice(0, 20),
-        totalErrors: errors.length
+        data: {
+          totalProcessed: processedCount,
+          successful: 0,
+          errors: errors.length
+        },
+        errors: errors.slice(0, 20)
       });
     }
 

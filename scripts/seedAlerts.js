@@ -68,10 +68,10 @@ function calculateConfidenceForSource(sourceCredibility) {
   return Math.round(totalScore * 100) / 100;
 }
 
-// Function to generate random date between Jan 1, 2026 and Jan 20, 2026
+// Function to generate random date between Jan 15, 2026 and Jan 30, 2026
 function getRandomDateInJanuary2026() {
-  const start = new Date('2026-01-01');
-  const end = new Date('2026-01-20');
+  const start = new Date('2026-01-15');
+  const end = new Date('2026-01-30');
   const randomTime = start.getTime() + Math.random() * (end.getTime() - start.getTime());
   return new Date(randomTime);
 }
