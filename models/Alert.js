@@ -62,6 +62,15 @@ const alertSchema = new mongoose.Schema(
         ref: "User"
       }
     ],
+    sourceCsv: {
+      fileId: String, // Unique identifier for the CSV file
+      fileName: String, // Original filename
+      uploadedAt: Date, // When the CSV was uploaded
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    },
   },
   { timestamps: true }
 );

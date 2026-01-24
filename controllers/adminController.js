@@ -2,6 +2,7 @@ const Alert = require('../models/Alert.js');
 const User = require('../models/User.js');
 const Subscriber = require('../models/subscribers.js');
 const Logger = require('../utils/logger.js');
+const csvStorage = require('../utils/csvStorage.js');
 const { startOfDay, subDays } = require('date-fns');
 
 // Get all alerts (admin only)
@@ -1768,6 +1769,7 @@ const downloadAlertTemplate = async (req, res) => {
 
 // Upload and process bulk alerts from CSV
 const uploadBulkAlerts = async (req, res) => {
+  let csvFile = null;
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1776,9 +1778,12 @@ const uploadBulkAlerts = async (req, res) => {
       });
     }
 
-    const { buffer, originalname } = req.file;
+    const { buffer, originalname, mimetype } = req.file;
     const csv = require('csv-parser');
     const { Readable } = require('stream');
+
+    // Store the CSV file first
+    csvFile = await csvStorage.saveFile(buffer, originalname, mimetype, req.userId);
 
     const alerts = [];
     const errors = [];
@@ -1893,7 +1898,13 @@ const uploadBulkAlerts = async (req, res) => {
               endDate: endDate || null,
               source: row.source?.trim() || 'Manual Upload',
               url: row.url?.trim() || null,
-              confidence: confidence
+              confidence: confidence,
+              sourceCsv: {
+                fileId: csvFile.fileId,
+                fileName: csvFile.originalName,
+                uploadedAt: csvFile.createdAt,
+                uploadedBy: req.userId
+              }
             };
 
             alerts.push(alertData);
@@ -1932,7 +1943,16 @@ const uploadBulkAlerts = async (req, res) => {
     if (alerts.length > 0) {
       const savedAlerts = await Alert.insertMany(alerts, { ordered: false });
 
+      // Update CSV file with upload statistics
+      csvFile.uploadStats = {
+        totalRows: processedCount,
+        successfulAlerts: savedAlerts.length,
+        failedRows: errors.length
+      };
+      await csvFile.save();
+
       await Logger.log(req, 'alerts_bulk_upload', {
+        fileId: csvFile.fileId,
         fileName: originalname,
         totalRows: processedCount,
         successfulAlerts: savedAlerts.length,
@@ -1946,6 +1966,11 @@ const uploadBulkAlerts = async (req, res) => {
           totalProcessed: processedCount,
           successful: savedAlerts.length,
           errors: errors.length,
+          csvFile: {
+            fileId: csvFile.fileId,
+            fileName: csvFile.originalName,
+            uploadedAt: csvFile.createdAt
+          },
           alerts: savedAlerts
         },
         errors: errors.slice(0, 10)
@@ -1966,8 +1991,18 @@ const uploadBulkAlerts = async (req, res) => {
   } catch (error) {
     console.error('Error uploading bulk alerts:', error);
 
+    // Clean up CSV file if it was saved but upload failed
+    if (csvFile) {
+      try {
+        await csvStorage.deleteFile(csvFile.fileId, req.userId);
+      } catch (cleanupError) {
+        console.error('Error cleaning up CSV file:', cleanupError);
+      }
+    }
+
     await Logger.log(req, 'alerts_bulk_upload_error', {
-      error: error.message
+      error: error.message,
+      fileName: req.file?.originalname
     });
 
     return res.status(500).json({
@@ -1975,6 +2010,117 @@ const uploadBulkAlerts = async (req, res) => {
       message: 'Failed to process CSV file',
       error: error.message
     });
+  }
+};
+
+// Get list of uploaded CSV files (admin only)
+const getCsvFiles = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const { files, total } = await csvStorage.listFiles(null, limitNumber, skip);
+
+    // Add alert counts for each CSV file
+    const filesWithStats = await Promise.all(
+      files.map(async (file) => {
+        const alertCount = await csvStorage.getAlertsCount(file.fileId);
+        return {
+          ...file,
+          alertCount
+        };
+      })
+    );
+
+    res.json({
+      files: filesWithStats,
+      totalCount: total,
+      currentPage: pageNumber,
+      totalPages: Math.ceil(total / limitNumber)
+    });
+  } catch (error) {
+    console.error('Error fetching CSV files:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Download a specific CSV file (admin only)
+const downloadCsvFile = async (req, res) => {
+  try {
+    const { fileId } = req.params;
+
+    const csvFile = await csvStorage.getFile(fileId);
+    const fileContent = await csvStorage.getFileContent(fileId);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', csvFile.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${csvFile.originalName}"`);
+    res.setHeader('Content-Length', csvFile.fileSize);
+
+    res.send(fileContent);
+  } catch (error) {
+    console.error('Error downloading CSV file:', error);
+
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ message: "CSV file not found" });
+    }
+
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Delete a CSV file and optionally its associated alerts (admin only)
+const deleteCsvFile = async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const { deleteAlerts = false } = req.query;
+
+    // Get file info before deletion
+    const csvFile = await csvStorage.getFile(fileId);
+
+    let alertsResult = null;
+    if (deleteAlerts) {
+      // Delete associated alerts
+      alertsResult = await csvStorage.deleteAssociatedAlerts(fileId, req.userId);
+    }
+
+    // Delete the CSV file
+    await csvStorage.deleteFile(fileId, req.userId);
+
+    // Log the action
+    await Logger.log(req, 'csv_file_deleted', {
+      fileId: csvFile.fileId,
+      fileName: csvFile.originalName,
+      deleteAlerts,
+      alertsAffected: alertsResult?.deletedCount || 0
+    });
+
+    res.json({
+      success: true,
+      message: `CSV file deleted successfully${deleteAlerts ? ` and ${alertsResult.deletedCount} associated alerts marked as expired` : ''}`,
+      data: {
+        fileId: csvFile.fileId,
+        fileName: csvFile.originalName,
+        alertsAffected: alertsResult?.deletedCount || 0,
+        alerts: alertsResult?.alerts || []
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting CSV file:', error);
+
+    if (error.message.includes('not found') || error.message.includes('access denied')) {
+      return res.status(404).json({ message: "CSV file not found or access denied" });
+    }
+
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -2004,5 +2150,8 @@ module.exports = {
   getAnalytics,
   downloadAlertTemplate,
   uploadBulkAlerts,
-  sendAlertToGuests
+  sendAlertToGuests,
+  getCsvFiles,
+  downloadCsvFile,
+  deleteCsvFile
 }; 

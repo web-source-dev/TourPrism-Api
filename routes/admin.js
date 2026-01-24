@@ -27,7 +27,10 @@ const {
   getAnalytics,
   downloadAlertTemplate,
   uploadBulkAlerts,
-  sendAlertToGuests
+  sendAlertToGuests,
+  getCsvFiles,
+  downloadCsvFile,
+  deleteCsvFile
 } = require('../controllers/adminController.js');
 
 const router = express.Router();
@@ -85,5 +88,10 @@ router.delete("/subscribers/:email", authorizeRoles(['admin']), deleteSubscriber
 
 // Analytics routes (admin only)
 router.get("/analytics", authorizeRoles(['admin']), getAnalytics);
+
+// CSV file management routes (admin only)
+router.get("/csv-files", authorizeRoles(['admin']), getCsvFiles);
+router.get("/csv-files/:fileId/download", authorizeRoles(['admin']), downloadCsvFile);
+router.delete("/csv-files/:fileId", authorizeRoles(['admin']), deleteCsvFile);
 
 module.exports = router; 
