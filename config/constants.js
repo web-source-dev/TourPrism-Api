@@ -1,3 +1,90 @@
+// Cities supported by the alert system - configurable
+const CITIES = [
+  'Edinburgh',
+  'London',
+  'Manchester',
+  'Birmingham',
+  'Leeds',
+  'Glasgow',
+  'Liverpool',
+  'Newcastle',
+  'Sheffield',
+  'Bristol',
+  'Belfast',
+  'Cardiff',
+  'Nottingham',
+  'Leicester',
+  'Coventry',
+  'Bradford',
+  'Hull',
+  'Stoke-on-Trent',
+  'Wolverhampton',
+  'Plymouth',
+  'Derby',
+  'Swansea',
+  'Sunderland',
+  'Southampton',
+  'Brighton',
+  'Reading',
+  'Milton Keynes',
+  'Oxford',
+  'Cambridge',
+  'Bath',
+  'York',
+  'Norwich',
+  'Portsmouth',
+  'Exeter',
+  'Canterbury',
+  'St Albans',
+  'Cheltenham',
+  'Gloucester',
+  'Hereford',
+  'Worcester',
+  'Winchester',
+  'Chichester',
+  'Truro',
+  'St Austell',
+  'Newquay',
+  'Penzance',
+  'Liskeard',
+  'Lostwithiel',
+  'Falmouth',
+  'Redruth',
+  'Camborne',
+  'Hayle',
+  'Helston',
+  'Marazion',
+  'Mousehole',
+  'Newlyn',
+  'Paul',
+  'Porthleven',
+  'Praze-an-Beeble',
+  'St Buryan',
+  'St Ives',
+  'St Just',
+  'St Keverne',
+  'St Mawes',
+  'The Lizard'
+];
+
+// Utility functions for cities
+const addCity = (city) => {
+  if (!CITIES.includes(city)) {
+    CITIES.push(city);
+  }
+};
+
+const removeCity = (city) => {
+  const index = CITIES.indexOf(city);
+  if (index > -1) {
+    CITIES.splice(index, 1);
+  }
+};
+
+const isValidCity = (city) => {
+  return CITIES.includes(city);
+};
+
 // Alert system constants - updated according to PDF specifications
 const ALERT_MAIN_TYPES = [
   'strike',
@@ -68,12 +155,6 @@ const CONFIDENCE_THRESHOLDS = {
   APPROVE: 0.6    // ≥ 0.6 = LLM tone + header
 };
 
-// Cities supported
-const CITIES = [
-  'Edinburgh',
-  'London'
-];
-
 
 // Confidence scoring system - updated according to SCORING & PUBLISHING.pdf
 const CONFIDENCE_SCORING = {
@@ -139,6 +220,9 @@ module.exports = {
   CONFIDENCE_SOURCE_TYPES,
   CONFIDENCE_THRESHOLDS,
   CITIES,
+  addCity,
+  removeCity,
+  isValidCity,
   CONFIDENCE_SCORING,
   NEWSDATA_CONFIG
 };

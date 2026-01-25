@@ -247,13 +247,13 @@ const register = async (req, res) => {
       }
 
       // Add location data if available (for future use)
-      if (subscriberData.location && subscriberData.location.length > 0) {
-        userData.company.locations = subscriberData.location.map((loc) => ({
-          name: loc.name || "",
-          latitude: loc.latitude || 0,
-          longitude: loc.longitude || 0,
-          placeId: loc.placeId || "",
-        }));
+      if (subscriberData.location && subscriberData.location.trim() !== '') {
+        userData.company.locations = [{
+          name: subscriberData.location.trim(),
+          latitude: 0,
+          longitude: 0,
+          placeId: "",
+        }];
       }
     }
 
@@ -861,15 +861,13 @@ const googleCallback = async (req, res) => {
         user.company.incentives = [];
 
         // Add location data if available
-        if (subscriber.location && subscriber.location.length > 0) {
-          user.company.locations = subscriber.location.map(
-            (loc) => ({
-              name: loc.name || "",
-              latitude: loc.latitude || 0,
-              longitude: loc.longitude || 0,
-              placeId: loc.placeId || "",
-            })
-          );
+        if (subscriber.location && subscriber.location.trim() !== '') {
+          user.company.locations = [{
+            name: subscriber.location.trim(),
+            latitude: 0,
+            longitude: 0,
+            placeId: "",
+          }];
         }
       }
 
@@ -922,15 +920,13 @@ const microsoftCallback = async (req, res) => {
         user.company.incentives = [];
 
         // Add location data if available
-        if (subscriber.location && subscriber.location.length > 0) {
-          user.company.locations = subscriber.location.map(
-            (loc) => ({
-              name: loc.name || "",
-              latitude: loc.latitude || 0,
-              longitude: loc.longitude || 0,
-              placeId: loc.placeId || "",
-            })
-          );
+        if (subscriber.location && subscriber.location.trim() !== '') {
+          user.company.locations = [{
+            name: subscriber.location.trim(),
+            latitude: 0,
+            longitude: 0,
+            placeId: "",
+          }];
         }
       }
 

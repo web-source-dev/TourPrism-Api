@@ -1,8 +1,10 @@
 const Alert = require('../models/Alert.js');
 const User = require('../models/User.js');
 const Subscriber = require('../models/subscribers.js');
+const Logs = require('../models/Logs.js');
 const Logger = require('../utils/logger.js');
 const csvStorage = require('../utils/csvStorage.js');
+const { CITIES, isValidCity } = require('../config/constants.js');
 const { startOfDay, subDays } = require('date-fns');
 
 // Get all alerts (admin only)
@@ -154,11 +156,15 @@ const updateAlertStatus = async (req, res) => {
 
     // Log alert status change
     try {
-      await Logger.log(req, 'admin_alert_status_changed', {
-        alertId,
-        alertTitle: alert.title,
-        previousStatus,
-        newStatus: status
+      await Logger.log({
+        action: 'admin_alert_status_changed',
+        req,
+        details: {
+          alertId,
+          alertTitle: alert.title,
+          previousStatus,
+          newStatus: status
+        }
       });
     } catch (error) {
       console.error('Error logging alert status change:', error);
@@ -189,12 +195,12 @@ const deleteAlert = async (req, res) => {
 
     // Log alert deletion
     try {
-      await Logger.log(req, 'admin_alert_deleted', {
+      await Logger.log({ action: 'admin_alert_deleted', req, details: {
         alertId,
         alertTitle,
         previousStatus,
         deletionType: 'permanent'
-      });
+      }});
     } catch (error) {
       console.error('Error logging alert deletion:', error);
     }
@@ -340,6 +346,166 @@ const createAlert = async (req, res) => {
   }
 };
 
+// Send weekly digest emails to all active subscribers
+const sendWeeklyDigestEmails = async (req, res) => {
+  try {
+    const Subscriber = require('../models/subscribers.js');
+    const Alert = require('../models/Alert.js');
+    const generateWeeklyDigestEmail = require('../utils/emailTemplates/weeklyDigest.js');
+
+    // Get all active subscribers
+    const subscribers = await Subscriber.find({ isActive: true });
+    console.log(`Found ${subscribers.length} active subscribers`);
+
+    if (subscribers.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No active subscribers found',
+        data: { sentTo: 0, total: 0 }
+      });
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+    const failedEmails = [];
+
+    for (const subscriber of subscribers) {
+      try {
+        // Get the subscriber's location (single city they subscribed to)
+        const subscribedCity = subscriber.location;
+
+        if (!subscribedCity) {
+          console.log(`Subscriber ${subscriber.email} has no location, skipping`);
+          continue;
+        }
+
+        // Get 5 most recent alerts for the subscribed city
+        const allAlerts = await Alert.find({
+          city: subscribedCity,
+          status: 'approved',
+        })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+        console.log('allAlerts', allAlerts.length);
+
+        // Remove duplicates and limit to 5 total alerts
+        const uniqueAlerts = [];
+        const seenTitles = new Set();
+        for (const alert of allAlerts) {
+          if (!seenTitles.has(alert.title) && uniqueAlerts.length < 5) {
+            uniqueAlerts.push(alert);
+            seenTitles.add(alert.title);
+          }
+        }
+        console.log('uniqueAlerts', uniqueAlerts.length);
+
+        if (uniqueAlerts.length === 0) {
+          console.log(`No alerts found for subscriber ${subscriber.email}, skipping`);
+          continue;
+        }
+
+        // Prepare email data
+        const locationNames = subscribedCity;
+        const alertCount = uniqueAlerts.length;
+
+        // Build alert parameters for the template
+        const alertParams = {};
+        uniqueAlerts.forEach((alert, index) => {
+          const alertNumber = index + 1;
+          alertParams[`ALERT${alertNumber}_EMOJI`] = getAlertEmoji(alert.mainType);
+          alertParams[`ALERT${alertNumber}_HEADER`] = alert.title;
+          alertParams[`ALERT${alertNumber}_START`] = new Date(alert.startDate).toLocaleDateString();
+          alertParams[`ALERT${alertNumber}_END`] = new Date(alert.endDate).toLocaleDateString();
+          alertParams[`ALERT${alertNumber}_BODY`] = alert.summary;
+        });
+
+        const emailParams = {
+          FIRSTNAME: subscriber.name || 'Subscriber',
+          LOCATION: locationNames,
+          DISRUPTION_COUNT: alertCount,
+          IS_REGISTERED: 'false', // Subscribers are not registered users
+          SIGNUP_LINK: `${process.env.FRONTEND_URL || 'https://tourprism.com'}/register`,
+          DASHBOARD_LINK: `${process.env.FRONTEND_URL || 'https://tourprism.com'}/dashboard`,
+          SUPPORT_EMAIL: 'support@tourprism.com',
+          WEBSITE: 'https://tourprism.com',
+          LINKEDIN: 'https://linkedin.com/company/tourprism',
+          TWITTER: 'https://twitter.com/tourprism',
+          COMPANY_NAME: 'Tourprism',
+          unsubscribe: `${process.env.FRONTEND_URL || 'https://tourprism.com'}/unsubscribe?email=${encodeURIComponent(subscriber.email)}`,
+          update_profile: `${process.env.FRONTEND_URL || 'https://tourprism.com'}/profile`,
+          ...alertParams
+        };
+
+        // Send the email
+        const { transporter } = require('../utils/emailService.js');
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@tourprism.com",
+          to: subscriber.email,
+          subject: `Weekly Travel Disruption Digest - ${locationNames}`,
+          html: generateWeeklyDigestEmail(emailParams)
+        });
+
+        // Update last sent timestamp
+        subscriber.lastWeeklyForecastReceived = new Date();
+        await subscriber.save();
+
+        sentCount++;
+        console.log(`Sent weekly digest to ${subscriber.email}`);
+
+      } catch (error) {
+        console.error(`Failed to send weekly digest to ${subscriber.email}:`, error);
+        failedCount++;
+        failedEmails.push(subscriber.email);
+      }
+    }
+
+    // Log the bulk email send
+    await Logger.log(req, 'admin_weekly_digest_sent', {
+      totalSubscribers: subscribers.length,
+      emailsSent: sentCount,
+      emailsFailed: failedCount,
+      failedEmails: failedEmails.slice(0, 10)
+    });
+
+    res.json({
+      success: true,
+      message: `Weekly digest sent to ${sentCount} subscribers${failedCount > 0 ? ` (${failedCount} failed)` : ''}`,
+      data: {
+        total: subscribers.length,
+        sentTo: sentCount,
+        failed: failedCount,
+        failedEmails: failedEmails.slice(0, 5)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error sending weekly digest emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send weekly digest emails',
+      error: error.message
+    });
+  }
+};
+
+// Helper function to get emoji for alert type
+const getAlertEmoji = (mainType) => {
+  const emojiMap = {
+    strike: '⚡',
+    weather: '🌧️',
+    protest: '📢',
+    flight: '✈️',
+    staff: '👥',
+    supply: '📦',
+    system: '💻',
+    policy: '📋',
+    economy: '💰',
+    other: '⚠️'
+  };
+  return emojiMap[mainType] || '⚠️';
+};
+
 // Get city-wide risk stats (for non-authenticated users)
 const getCityRiskStats = async (req, res) => {
   try {
@@ -348,8 +514,8 @@ const getCityRiskStats = async (req, res) => {
     const sevenDaysAgo = subDays(today, 7);
 
     // Validate city
-    if (!['Edinburgh', 'London'].includes(city)) {
-      return res.status(400).json({ message: 'Invalid city. Must be Edinburgh or London.' });
+    if (!isValidCity(city)) {
+      return res.status(400).json({ message: `Invalid city. Must be one of: ${CITIES.join(', ')}` });
     }
 
     // Get alerts for this city that could affect hotels
@@ -625,11 +791,10 @@ const deleteSubscriber = async (req, res) => {
     await Subscriber.deleteOne({ email });
 
     // Log the deletion
-    await Logger.log(req, 'subscriber_deleted', {
+    await Logger.log({ action: 'subscriber_deleted', req, details: {
       email: email,
-      sectors: Array.isArray(subscriber.sectors) ? subscriber.sectors.join(', ') : subscriber.sectors,
-      location: Array.isArray(subscriber.location) ? subscriber.location.map(loc => loc.name).join(', ') : subscriber.location
-    });
+      location: subscriber.location
+    }});
 
     res.json({
       success: true,
@@ -654,20 +819,10 @@ const getSubscriberStats = async (req, res) => {
       createdAt: { $gte: thirtyDaysAgo }
     });
 
-    // Get sector breakdown
-    const sectorStats = await Subscriber.aggregate([
-      { $match: { isActive: true } },
-      { $unwind: '$sectors' },
-      { $group: { _id: '$sectors', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
-
     // Get location breakdown
     const locationStats = await Subscriber.aggregate([
-      { $match: { isActive: true } },
-      { $unwind: '$location' },
-      { $group: { _id: '$location.name', count: { $sum: 1 } } },
+      { $match: { isActive: true, location: { $exists: true, $ne: '' } } },
+      { $group: { _id: '$location', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 }
     ]);
@@ -677,7 +832,6 @@ const getSubscriberStats = async (req, res) => {
       activeSubscribers,
       inactiveSubscribers: totalSubscribers - activeSubscribers,
       recentSubscribers,
-      sectorStats,
       locationStats
     });
   } catch (error) {
@@ -875,10 +1029,26 @@ const getUsers = async (req, res) => {
       .select('-password -otp -otpExpiry -resetPasswordToken -resetPasswordExpiry')
       .lean();
 
+    // Check subscription status for each user by checking if they exist in subscribers collection
+    const Subscriber = require('../models/subscribers.js');
+    const userEmails = users.map(user => user.email);
+
+    const subscribers = await Subscriber.find({
+      email: { $in: userEmails }
+    }).select('email').lean();
+
+    const subscriberEmails = new Set(subscribers.map(sub => sub.email));
+
+    // Add subscription status to users (only check subscriber database)
+    const usersWithSubscriptionStatus = users.map(user => ({
+      ...user,
+      isSubscribedViaNewsletter: subscriberEmails.has(user.email)
+    }));
+
     // Get total count for pagination
     const totalCount = await User.countDocuments(query);
 
-    res.json({ users, totalCount });
+    res.json({ users: usersWithSubscriptionStatus, totalCount });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -1042,7 +1212,7 @@ const deleteUser = async (req, res) => {
     const userRole = user.role;
 
     // Clean up related data before deleting user
-    const Booking = require('../models/Booking.js');
+    const { Booking } = require('../models/Booking.js');
     const Alert = require('../models/Alert.js');
 
     // Delete all bookings associated with this user (hotelId)
@@ -1300,8 +1470,6 @@ const getUserAnalytics = async (startDate, endDate) => {
     return {};
   }
 };
-
-
 
 // Helper function for alert analytics
 const getAlertAnalytics = async (startDate, endDate) => {
@@ -1808,11 +1976,11 @@ const uploadBulkAlerts = async (req, res) => {
             }
 
             // Validate city
-            if (!['Edinburgh', 'London'].includes(row.city)) {
+            if (!isValidCity(row.city)) {
               errors.push({
                 row: processedCount,
                 field: 'city',
-                message: 'City must be Edinburgh or London'
+                message: `City must be one of: ${CITIES.join(', ')}`
               });
               return;
             }
@@ -2124,6 +2292,104 @@ const deleteCsvFile = async (req, res) => {
   }
 };
 
+// Get list of configured cities (admin only)
+const getCities = async (req, res) => {
+  try {
+    res.json({
+      cities: CITIES,
+      total: CITIES.length
+    });
+  } catch (error) {
+    console.error('Error fetching cities:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Add a new city to the configuration (admin only)
+const addCity = async (req, res) => {
+  try {
+    const { city } = req.body;
+
+    if (!city || typeof city !== 'string' || city.trim().length === 0) {
+      return res.status(400).json({ message: "City name is required" });
+    }
+
+    const trimmedCity = city.trim();
+
+    if (isValidCity(trimmedCity)) {
+      return res.status(400).json({ message: "City already exists" });
+    }
+
+    // Add city to the configuration
+    CITIES.push(trimmedCity);
+
+    // Log the action
+    await Logger.log(req, 'city_added', {
+      city: trimmedCity,
+      totalCities: CITIES.length
+    });
+
+    res.json({
+      success: true,
+      message: `City "${trimmedCity}" added successfully`,
+      cities: CITIES,
+      total: CITIES.length
+    });
+  } catch (error) {
+    console.error('Error adding city:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Remove a city from the configuration (admin only)
+const removeCity = async (req, res) => {
+  try {
+    const { city } = req.params;
+
+    if (!city || typeof city !== 'string') {
+      return res.status(400).json({ message: "City name is required" });
+    }
+
+    if (!isValidCity(city)) {
+      return res.status(404).json({ message: "City not found" });
+    }
+
+    // Check if city is being used by any alerts
+    const alertsCount = await Alert.countDocuments({ city });
+    const usersCount = await User.countDocuments({ 'company.city': city });
+
+    if (alertsCount > 0 || usersCount > 0) {
+      return res.status(400).json({
+        message: `Cannot remove city "${city}". It is currently used by ${alertsCount} alerts and ${usersCount} users.`,
+        alertsCount,
+        usersCount
+      });
+    }
+
+    // Remove city from the configuration
+    const index = CITIES.indexOf(city);
+    if (index > -1) {
+      CITIES.splice(index, 1);
+    }
+
+    // Log the action
+    await Logger.log(req, 'city_removed', {
+      city,
+      totalCities: CITIES.length
+    });
+
+    res.json({
+      success: true,
+      message: `City "${city}" removed successfully`,
+      cities: CITIES,
+      total: CITIES.length
+    });
+  } catch (error) {
+    console.error('Error removing city:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   getAlerts,
   updateAlertStatus,
@@ -2151,7 +2417,11 @@ module.exports = {
   downloadAlertTemplate,
   uploadBulkAlerts,
   sendAlertToGuests,
+  sendWeeklyDigestEmails,
   getCsvFiles,
   downloadCsvFile,
-  deleteCsvFile
+  deleteCsvFile,
+  getCities,
+  addCity,
+  removeCity
 }; 

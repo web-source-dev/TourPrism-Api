@@ -21,13 +21,13 @@ class NewsDataService {
       const { NEWSDATA_CONFIG } = require('./constants.js');
       const allDisruptions = [];
 
-      // Fetch news for both Edinburgh and London
+      // Fetch news for all configured cities
       for (const city of CITIES) {
         try {
           console.log(`📰 Fetching NewsData for ${city}...`);
 
           // Use simple city-based query - NewsData API works better with simple queries
-          const cityQuery = city === 'Edinburgh' ? 'Edinburgh' : 'London';
+          const cityQuery = city;
 
           // Make multiple requests with different disruption keywords to get comprehensive results
           const disruptionQueries = [
@@ -111,13 +111,13 @@ class NewsDataService {
 
       const allDisruptions = [];
 
-      // Fetch archived news for both Edinburgh and London
+      // Fetch archived news for all configured cities
       for (const city of CITIES) {
         try {
           console.log(`📰 Fetching archived NewsData for ${city}...`);
 
           // Use simple city-based query
-          const cityQuery = city === 'Edinburgh' ? 'Edinburgh' : 'London';
+          const cityQuery = city;
 
           // Make multiple requests with different disruption keywords
           const disruptionQueries = [
@@ -200,7 +200,7 @@ class NewsDataService {
       const city = this.extractCity(article.title + ' ' + (article.description || ''));
 
       if (!city) {
-        return null; // Skip articles that don't mention Edinburgh or London
+        return null; // Skip articles that don't mention configured cities
       }
 
       // Extract disruption type from keywords/content
@@ -233,11 +233,38 @@ class NewsDataService {
 
   extractCity(text) {
     const lowerText = text.toLowerCase();
+    const { CITIES } = require('./constants.js');
 
-    if (lowerText.includes('edinburgh')) {
-      return 'Edinburgh';
-    } else if (lowerText.includes('london') || lowerText.includes('heathrow') || lowerText.includes('gatwick')) {
-      return 'London';
+    // Check each configured city
+    for (const city of CITIES) {
+      if (lowerText.includes(city.toLowerCase())) {
+        return city;
+      }
+    }
+
+    // Special cases for major airports and transport hubs
+    const specialCases = {
+      'London': ['heathrow', 'gatwick', 'london city', 'stansted', 'luton'],
+      'Edinburgh': ['edinburgh airport'],
+      'Manchester': ['manchester airport'],
+      'Birmingham': ['birmingham airport'],
+      'Glasgow': ['glasgow airport'],
+      'Newcastle': ['newcastle airport'],
+      'Liverpool': ['liverpool airport'],
+      'Leeds': ['leeds bradford airport'],
+      'Bristol': ['bristol airport'],
+      'Cardiff': ['cardiff airport'],
+      'Belfast': ['belfast international', 'belfast city']
+    };
+
+    for (const [city, keywords] of Object.entries(specialCases)) {
+      if (CITIES.includes(city)) {
+        for (const keyword of keywords) {
+          if (lowerText.includes(keyword)) {
+            return city;
+          }
+        }
+      }
     }
 
     return null;

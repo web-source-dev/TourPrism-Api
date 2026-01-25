@@ -32,7 +32,6 @@ const userSchema = new mongoose.Schema(
     
       city: {
         type: String,
-        enum: ['Edinburgh', 'London'],
         default: null
       },
     
@@ -65,6 +64,11 @@ const userSchema = new mongoose.Schema(
         default: []
       }
     },
+    // Weekly forecast subscription
+    weeklyForecastSubscribed: { type: Boolean, default: false },
+    weeklyForecastSubscribedAt: Date,
+    lastWeeklyForecastReceived: Date,
+
     settings: {
       recoveryActions: {
         sendAutomaticStayAnyway: { type: Boolean, default: true },

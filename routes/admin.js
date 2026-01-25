@@ -28,9 +28,13 @@ const {
   downloadAlertTemplate,
   uploadBulkAlerts,
   sendAlertToGuests,
+  sendWeeklyDigestEmails,
   getCsvFiles,
   downloadCsvFile,
-  deleteCsvFile
+  deleteCsvFile,
+  getCities,
+  addCity,
+  removeCity
 } = require('../controllers/adminController.js');
 
 const router = express.Router();
@@ -85,6 +89,7 @@ router.delete("/users/:userId", authorizeRoles(['admin']), deleteUser);
 router.get("/subscribers", authorizeRoles(['admin']), getSubscribers);
 router.get("/subscribers/stats", authorizeRoles(['admin']), getSubscriberStats);
 router.delete("/subscribers/:email", authorizeRoles(['admin']), deleteSubscriber);
+router.post("/subscribers/send-weekly-digest", authorizeRoles(['admin']), sendWeeklyDigestEmails);
 
 // Analytics routes (admin only)
 router.get("/analytics", authorizeRoles(['admin']), getAnalytics);
@@ -93,5 +98,10 @@ router.get("/analytics", authorizeRoles(['admin']), getAnalytics);
 router.get("/csv-files", authorizeRoles(['admin']), getCsvFiles);
 router.get("/csv-files/:fileId/download", authorizeRoles(['admin']), downloadCsvFile);
 router.delete("/csv-files/:fileId", authorizeRoles(['admin']), deleteCsvFile);
+
+// City management routes (admin only)
+router.get("/cities", authorizeRoles(['admin']), getCities);
+router.post("/cities", authorizeRoles(['admin']), addCity);
+router.delete("/cities/:city", authorizeRoles(['admin']), removeCity);
 
 module.exports = router; 

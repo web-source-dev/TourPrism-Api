@@ -1,7 +1,6 @@
 const SibApiV3Sdk = require('sib-api-v3-sdk');
 const dotenv = require('dotenv');
 dotenv.config();
-const Logger = require('./logger.js');
 // Note: Email template functions are imported where needed to avoid circular dependencies
 
 // Initialize Brevo API client
@@ -46,15 +45,6 @@ const sendMail = async (mailOptions) => {
     
     console.log(`✅ Email sent successfully to ${mailOptions.to} (Message ID: ${result.messageId})`);
     
-    // Log successful email send
-    await Logger.logSystem('email_sent', {
-      to: mailOptions.to,
-      from: mailOptions.from,
-      subject: mailOptions.subject,
-      messageId: result.messageId,
-      emailType: mailOptions.emailType || 'general'
-    });
-    
     return result;
   } catch (error) {
     console.error('❌ Error sending email with Brevo:', error.message);
@@ -68,15 +58,6 @@ const sendMail = async (mailOptions) => {
       });
     }
     
-    // Log failed email send
-    await Logger.logSystem('email_send_failed', {
-      to: mailOptions.to,
-      from: mailOptions.from,
-      subject: mailOptions.subject,
-      error: error.message,
-      errorDetails: error.response?.body,
-      emailType: mailOptions.emailType || 'general'
-    });
     
     throw error;
   }

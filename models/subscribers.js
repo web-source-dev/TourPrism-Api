@@ -9,21 +9,19 @@ const subscriberSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-    location: [
-        {
-        name: String,
-        latitude: Number,
-        longitude: Number,
-        placeId: String
-        }
-    ],
-    sectors: {
-        type: [String],
-        default: []
+    location: {
+        type: String,
+        default: ''
     },
     isActive: {
         type: Boolean,
         default: true,
+    },
+    otp: {
+        type: String,
+    },
+    otpExpiry: {
+        type: Date,
     },
     createdAt: {
         type: Date,
